@@ -17,12 +17,20 @@ const Home = () => {
 
             </div>
         </section>
-        <section>
+        <section className='p-10 lg:py-10 lg:px-20'>
+            <p className='text-2xl font-semibold text-gray-400 py-3 pb-10'>Top Tech Picks</p>
             <MultiItemCarousal/>
-
+        </section>
+        <section className='px-5 lg:px-20'>
+          <h1 className='text-2xl font-semibold text-gray-400 py-3'>Our Flagship Stores</h1>
+          <div>
+            
+          </div>
         </section>
     </div>
   )
 }
 
 export default Home
+
+//53:16
