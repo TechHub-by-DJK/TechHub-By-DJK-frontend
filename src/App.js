@@ -4,6 +4,7 @@ import Navbar from './component/Navbar/Navbar';
 import { darkTheme } from './Theme/DarkTheme';
 import { CssBaseline } from '@mui/material';
 import Home from './component/Home/Home';
+import { ShopDetails } from './component/Shop/ShopDetails';
 
 function App() {
   return (
@@ -11,7 +12,8 @@ function App() {
       <ThemeProvider theme={darkTheme}>
         <CssBaseline />
         <Navbar/>
-        <Home />
+        {/* <Home /> */}
+        <ShopDetails />
       </ThemeProvider>
     </div>
   );
