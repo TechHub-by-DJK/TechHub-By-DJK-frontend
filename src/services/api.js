@@ -107,30 +107,46 @@ class ApiService {
         return this.request(`/api/shops/${shopId}/add-favourites`, {
             method: 'PUT',
         });
-    }
-
+    }   
     // Computer APIs
     async getShopComputers(shopId, filters = {}) {
-        // Handle both filtering and plain requests
-        if (typeof filters === 'object' && Object.keys(filters).length > 0 && filters.hasOwnProperty('gamer')) {
-            const queryParams = new URLSearchParams();
-            
-            // Add filter parameters for legacy API
-            queryParams.append('gamer', filters.gamer || false);
-            queryParams.append('designer', filters.designer || false);
-            queryParams.append('developer', filters.developer || false);
-            queryParams.append('homeUser', filters.homeUser || false);
-            queryParams.append('bussinessPerson', filters.businessUser || false);
-            queryParams.append('seasonal', filters.seasonal || false);
-            
-            if (filters.computer_category) {
-                queryParams.append('computer_category', filters.computer_category);
+        try {
+            // Try the new API endpoint first
+            try {
+                return await this.request(`/api/shops/${shopId}/computers`);
+            } catch (error) {
+                // If new endpoint fails with 404, fall back to old endpoint
+                console.log(`New API endpoint failed, trying fallback: ${error.message}`);
+                
+                // Handle both filtering and plain requests
+                const queryParams = new URLSearchParams();
+                
+                // Add filter parameters for legacy API
+                if (typeof filters === 'object') {
+                    if (filters.gamer) queryParams.append('gamer', filters.gamer);
+                    if (filters.designer) queryParams.append('designer', filters.designer);
+                    if (filters.developer) queryParams.append('developer', filters.developer);
+                    if (filters.homeUser) queryParams.append('homeUser', filters.homeUser);
+                    if (filters.businessUser) queryParams.append('bussinessPerson', filters.businessUser);
+                    if (filters.seasonal) queryParams.append('seasonal', filters.seasonal);
+                    
+                    if (filters.computer_category) {
+                        queryParams.append('computer_category', filters.computer_category);
+                    }
+                }
+                
+                // Try legacy endpoint
+                try {
+                    return await this.request(`/api/computer/shop/${shopId}?${queryParams.toString()}`);
+                } catch (fallbackError) {
+                    // If both APIs fail, try a general computers endpoint as last resort
+                    console.log(`Legacy API endpoint also failed: ${fallbackError.message}`);
+                    return await this.request(`/api/computers`);
+                }
             }
-
-            return this.request(`/api/computer/shop/${shopId}?${queryParams.toString()}`);
-        } else {
-            // New API endpoint for shop computers
-            return this.request(`/api/shops/${shopId}/computers`);
+        } catch (finalError) {
+            console.error('All computer API endpoints failed:', finalError);
+            return []; // Return empty array as fallback
         }
     }
 
@@ -317,10 +333,17 @@ class ApiService {
 
     async getShopByUserId() {
         return this.request('/api/admin/shop/user');
-    }
-
-    async getShopByOwner() {
-        return this.request('/api/shops/my-shop');
+    }    async getShopByOwner() {
+        try {
+            return await this.request('/api/shops/my-shop');
+        } catch (error) {
+            // Properly handle 404 for when shop doesn't exist
+            if (error.message && error.message.includes("404")) {
+                console.log("Shop doesn't exist for this user");
+                throw new Error("User doesn't have a shop yet");
+            }
+            throw error;
+        }
     }
 
     async getShopOrders(shopId, orderStatus = null) {
@@ -366,12 +389,32 @@ class ApiService {
         return this.request(`/api/admin/users/${userId}/block`, {
             method: 'PUT',
         });
-    }
-
-    async approveShop(shopId) {
+    }    async approveShop(shopId) {
         return this.request(`/api/admin/shops/${shopId}/approve`, {
             method: 'PUT',
         });
+    }
+
+    // Shop Owner specific APIs
+    async createShopByOwner(shopData) {
+        return this.request('/api/shops', {
+            method: 'POST',
+            body: JSON.stringify(shopData),
+        });
+    }
+
+    async getShopAdminData() {
+        try {
+            const shop = await this.getShopByOwner();
+            return { exists: true, shop };
+        } catch (error) {
+            // If 404, shop doesn't exist for this user
+            if (error.message && error.message.includes('404')) {
+                return { exists: false };
+            }
+            // Re-throw other errors
+            throw error;
+        }
     }
 }
 
