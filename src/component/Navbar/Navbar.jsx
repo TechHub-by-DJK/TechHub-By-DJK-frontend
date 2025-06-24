@@ -12,6 +12,7 @@ import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
 import { useNavigate } from 'react-router-dom';
+import { isShopOwner, isAdmin, isCustomer } from '../../utils/roleUtils';
 
 export const Navbar = () => {
     const { user, isAuthenticated, logout } = useAuth();
@@ -33,9 +34,7 @@ export const Navbar = () => {
         logout();
         handleMenuClose();
         navigate('/');
-    };
-
-    const handleSearch = (e) => {
+    };    const handleSearch = (e) => {
         e.preventDefault();
         if (searchQuery.trim()) {
             navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
@@ -43,47 +42,75 @@ export const Navbar = () => {
             setSearchQuery('');
         }
     };
-
+      // We're now using the imported role helper functions
     const getMenuItems = () => {
         if (!user) return [];
 
-        const items = [
-            {
-                label: 'Profile',
-                icon: <AccountCircleIcon />,
-                onClick: () => {
-                    navigate('/profile');
-                    handleMenuClose();
-                }
-            },
-            {
+        const items = [];
+        
+        // Common items for all users
+        items.push({
+            label: 'Profile',
+            icon: <AccountCircleIcon />,
+            onClick: () => {
+                navigate('/profile');
+                handleMenuClose();
+            }
+        });        // Use the imported role utility functions
+        const userIsShopOwner = isShopOwner(user);
+        const userIsAdmin = isAdmin(user);
+        const userIsCustomer = isCustomer(user);
+          // Show customer-specific options only for regular users
+        if (userIsCustomer) {
+            items.push({
                 label: 'My Orders',
                 icon: <ShoppingCartIcon />,
                 onClick: () => {
                     navigate('/orders');
                     handleMenuClose();
                 }
-            },
-            {
+            });
+            
+            items.push({
                 label: 'Favorites',
                 icon: <FavoriteIcon />,
                 onClick: () => {
                     navigate('/favorites');
                     handleMenuClose();
                 }
-            }
-        ];        if (user.role === 'SHOP_OWNER') {
+            });
+        }
+          // Shop owner specific options
+        if (userIsShopOwner) {
             items.push({
                 label: 'Shop Dashboard',
                 icon: <StoreIcon />,
                 onClick: () => {
-                    navigate('/shop-dashboard');
+                    navigate('/dashboard/shop');
+                    handleMenuClose();
+                }
+            });
+            
+            items.push({
+                label: 'Manage Products',
+                icon: <ShoppingCartIcon />,
+                onClick: () => {
+                    navigate('/dashboard/shop');
+                    handleMenuClose();
+                }
+            });
+            
+            items.push({
+                label: 'Shop Orders',
+                icon: <ShoppingCartIcon />,
+                onClick: () => {
+                    navigate('/dashboard/shop');
                     handleMenuClose();
                 }
             });
         }
 
-        if (user.role === 'ADMIN') {
+        if (userIsAdmin) {
             items.push({
                 label: 'Admin Dashboard',
                 icon: <AdminPanelSettingsIcon />,
@@ -111,14 +138,28 @@ export const Navbar = () => {
                     <li className='logo font-semibold text-white text-2xl'>
                         TechHub
                     </li>
-                </div>
-
-                <div className='flex items-center space-x-2 lg:space-x-10'>
+                </div>                <div className='flex items-center space-x-2 lg:space-x-10'>
                     <div className=''>
                         <IconButton onClick={() => setSearchOpen(true)} sx={{ color: 'white' }}>
                             <SearchIcon sx={{fontSize:"1.5rem"}}/>
                         </IconButton>
                     </div>
+                      {/* Shop Owner Dashboard Button */}
+                    {isAuthenticated && isShopOwner(user) && (
+                        <Button 
+                            startIcon={<StoreIcon />}
+                            onClick={() => navigate('/dashboard/shop')}
+                            sx={{ 
+                                color: 'white',
+                                border: '1px solid white',
+                                '&:hover': {
+                                    backgroundColor: 'rgba(255, 255, 255, 0.1)'
+                                }
+                            }}
+                        >
+                            My Shop
+                        </Button>
+                    )}
                     
                     <div className=''>
                         {isAuthenticated ? (
@@ -160,15 +201,16 @@ export const Navbar = () => {
                                 Login
                             </Button>
                         )}
-                    </div>
-                    
-                    <div className=''>
-                        <IconButton onClick={() => navigate('/cart')} sx={{ color: 'white' }}>
-                            <Badge badgeContent={getCartItemCount()} color='primary'>
-                                <ShoppingCartIcon sx={{fontSize:"1.5rem"}}/>
-                            </Badge>
-                        </IconButton>
-                    </div>
+                    </div>                    {/* Show cart only for regular customers and guests */}
+                    {(!user || (user && isCustomer(user))) && (
+                        <div className=''>
+                            <IconButton onClick={() => navigate('/cart')} sx={{ color: 'white' }}>
+                                <Badge badgeContent={getCartItemCount()} color='primary'>
+                                    <ShoppingCartIcon sx={{fontSize:"1.5rem"}}/>
+                                </Badge>
+                            </IconButton>
+                        </div>
+                    )}
                 </div>
             </Box>
 
