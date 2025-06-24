@@ -6,17 +6,41 @@ import StoreIcon from '@mui/icons-material/Store';
 import ApiService from '../../services/api'
 import './Home.css'
 import MultiItemCarousal from './MultiItemCarousal'
+import { useAuth } from '../../contexts/AuthContext'
+import { isShopOwner, isAdmin, getDashboardUrl } from '../../utils/roleUtils'
 
 const Home = () => {
     const navigate = useNavigate();
+    const { user, isAuthenticated } = useAuth();
     const [shops, setShops] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [featuredComputers, setFeaturedComputers] = useState([]);
-
-    useEffect(() => {
+    const [featuredComputers, setFeaturedComputers] = useState([]);    useEffect(() => {
+        // Debug log
+        console.log('Home component - Auth status:', isAuthenticated, 'User role:', user?.role);
+        
+        // Redirect shop owners and admins to their respective dashboards
+        if (isAuthenticated && user) {
+            if (isShopOwner(user)) {
+                console.log('Home: Redirecting shop owner to shop dashboard');
+                navigate('/dashboard/shop');
+                return;
+            } else if (isAdmin(user)) {
+                console.log('Home: Redirecting admin to admin dashboard');
+                navigate('/admin-dashboard');
+                return;
+            }
+            // Alternatively, we could use the utility function:
+            // const dashboardUrl = getDashboardUrl(user);
+            // if (dashboardUrl !== '/') {
+            //   navigate(dashboardUrl);
+            //   return;
+            // }
+        }
+        
+        // For regular users and non-authenticated visitors, show the regular home page
         fetchShops();
         fetchFeaturedComputers();
-    }, []);
+    }, [isAuthenticated, user, navigate]);
 
     const fetchShops = async () => {
         try {
