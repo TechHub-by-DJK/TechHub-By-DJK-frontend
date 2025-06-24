@@ -30,12 +30,13 @@ import {
 } from '@mui/icons-material';
 import { useCart } from '../../contexts/CartContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { apiService } from '../../services/api';
+import ApiService from '../../services/api';
 
 const Checkout = () => {
-  const { cartItems, getTotalPrice, clearCart } = useCart();
+  const { cart, getCartTotal, clearCart } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const apiService = new ApiService();
   
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -64,12 +65,11 @@ const Checkout = () => {
   });
 
   const steps = ['Order Review', 'Shipping Information', 'Payment', 'Confirmation'];
-
   useEffect(() => {
-    if (!cartItems || cartItems.length === 0) {
+    if (!cart || !cart.item || cart.item.length === 0) {
       navigate('/cart');
     }
-  }, [cartItems, navigate]);
+  }, [cart, navigate]);
 
   const handleNext = () => {
     if (activeStep === steps.length - 1) {
@@ -109,18 +109,17 @@ const Checkout = () => {
     const required = ['cardNumber', 'expiryDate', 'cvv', 'cardName'];
     return required.every(field => paymentInfo[field]?.trim());
   };
-
   const handlePlaceOrder = async () => {
     try {
       setLoading(true);
       setError(null);
       
       const orderData = {
-        items: cartItems.map(item => ({
-          productId: item.id,
-          productType: item.type || 'COMPUTER',
+        items: cart.item.map(item => ({
+          productId: item.product.id,
+          productType: item.product.type || 'COMPUTER',
           quantity: item.quantity,
-          price: item.price
+          price: item.product.price
         })),
         deliveryAddress: {
           streetAddress: shippingInfo.streetAddress,
@@ -136,13 +135,13 @@ const Checkout = () => {
           phone: shippingInfo.phone
         },
         paymentMethod: paymentMethod,
-        totalAmount: getTotalPrice()
+        totalAmount: getCartTotal()
       };
 
       const response = await apiService.createOrder(orderData);
       
-      if (response.success) {
-        clearCart();
+      if (response) {
+        await clearCart();
         setSuccess(true);
         setActiveStep(steps.length - 1);
         
@@ -174,29 +173,28 @@ const Checkout = () => {
           <Box>
             <Typography variant="h6" sx={{ mb: 3 }}>
               Order Summary
-            </Typography>
-            <List>
-              {cartItems.map((item, index) => (
+            </Typography>          <List>
+              {cart?.item?.map((item, index) => (
                 <ListItem key={index} sx={{ px: 0 }}>
                   <ListItemAvatar>
-                    <Avatar src={item.imageUrl} alt={item.name} sx={{ width: 60, height: 60 }} />
+                    <Avatar src={item.product.imageUrl} alt={item.product.name} sx={{ width: 60, height: 60 }} />
                   </ListItemAvatar>
                   <ListItemText
-                    primary={item.name}
+                    primary={item.product.name}
                     secondary={
                       <Box>
                         <Typography variant="body2">
                           Quantity: {item.quantity}
                         </Typography>
                         <Typography variant="body2" color="primary">
-                          {formatPrice(item.price)}
+                          {formatPrice(item.product.price)}
                         </Typography>
                       </Box>
                     }
                     sx={{ ml: 2 }}
                   />
                   <Typography variant="h6">
-                    {formatPrice(item.price * item.quantity)}
+                    {formatPrice(item.product.price * item.quantity)}
                   </Typography>
                 </ListItem>
               ))}
@@ -207,7 +205,7 @@ const Checkout = () => {
                 Total Amount:
               </Typography>
               <Typography variant="h5" color="primary" sx={{ fontWeight: 'bold' }}>
-                {formatPrice(getTotalPrice())}
+                {formatPrice(getCartTotal())}
               </Typography>
             </Box>
           </Box>
@@ -414,11 +412,10 @@ const Checkout = () => {
         return 'Unknown step';
     }
   };
-
   const isStepComplete = (step) => {
     switch (step) {
       case 0:
-        return cartItems && cartItems.length > 0;
+        return cart && cart.item && cart.item.length > 0;
       case 1:
         return validateShippingInfo();
       case 2:
@@ -428,7 +425,7 @@ const Checkout = () => {
     }
   };
 
-  if (!cartItems || cartItems.length === 0) {
+  if (!cart || !cart.item || cart.item.length === 0) {
     return null;
   }
 

@@ -177,11 +177,14 @@ const Login = () => {
                 // Redirect based on user role
                 // Check string roles and numeric values
                 if (result.role === 'ADMIN' || result.role === 2) {
+                    console.log('Login: Redirecting admin to admin dashboard');
                     navigate('/admin-dashboard');
                 } else if (result.role === 'SHOP_OWNER' || result.role === 1) {
-                    console.log('Login: Redirecting shop owner to dashboard');
+                    console.log('Login: Redirecting shop owner to shop dashboard');
                     navigate('/dashboard/shop');
                 } else {
+                    // For customers or any other role
+                    console.log('Login: Redirecting customer to home or original page');
                     navigate(from);
                 }
             } else {
