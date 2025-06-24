@@ -19,10 +19,12 @@ import TechGadgets from './component/TechGadgets/TechGadgets';
 import TechGadgetDetail from './component/TechGadgets/TechGadgetDetail';
 import ShopDashboard from './component/Dashboard/ShopDashboard';
 import AdminDashboard from './component/Dashboard/AdminDashboard';
+import ShopAdmin from './component/Shop/ShopAdmin';
 import Checkout from './component/Checkout/Checkout';
 import ProtectedRoute from './component/Auth/ProtectedRoute';
 import Footer from './component/Layout/Footer';
 import NotFound from './component/Common/NotFound';
+import UserRoleDebugger from './component/Common/UserRoleDebugger';
 import './App.css';
 
 function App() {
@@ -35,17 +37,20 @@ function App() {
             <div className="App" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
               <Navbar />
               <main style={{ flex: 1 }}>
-                <Routes>
-                {/* Public Routes */}
-                <Route path="/" element={<Home />} />
+                <Routes>                
+                  {/* Public Routes */}
+                <Route path="/" element={
+                  <Home />
+                } />
                 <Route path="/login" element={<Login />} />
                 <Route path="/shop/:shopId" element={<ShopDetails />} />                
                 <Route path="/computer/:computerId" element={<ComputerDetail />} />
                 <Route path="/search" element={<SearchResults />} />
-                <Route path="/gadgets" element={<TechGadgets />} />
+                <Route path="/gadgets" element={<TechGadgets />} />                
                 <Route path="/gadget/:gadgetId" element={<TechGadgetDetail />} />
+                <Route path="/debug-role" element={<ProtectedRoute><UserRoleDebugger /></ProtectedRoute>} />
                 
-                {/* Protected Routes */}                
+                {/* Protected Routes */}
                 <Route path="/cart" element={
                   <ProtectedRoute>
                     <Cart />
@@ -65,14 +70,25 @@ function App() {
                   <ProtectedRoute>
                     <Profile />
                   </ProtectedRoute>
-                } />
-                
-                {/* Role-based Protected Routes */}
+                } />                {/* Role-based Protected Routes */}
+                <Route path="/shop-admin" element={
+                  <ProtectedRoute requiredRole="SHOP_OWNER">
+                    <ShopAdmin />
+                  </ProtectedRoute>
+                } />                
+                {/* Redirect from old path to new path */}
                 <Route path="/shop-dashboard" element={
                   <ProtectedRoute requiredRole="SHOP_OWNER">
                     <ShopDashboard />
                   </ProtectedRoute>
-                } />                <Route path="/admin-dashboard" element={
+                } />
+                {/* Main shop dashboard route */}
+                <Route path="/dashboard/shop" element={
+                  <ProtectedRoute requiredRole="SHOP_OWNER">
+                    <ShopDashboard />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin-dashboard" element={
                   <ProtectedRoute requiredRole="ADMIN">
                     <AdminDashboard />
                   </ProtectedRoute>
