@@ -22,6 +22,7 @@ import AdminDashboard from './component/Dashboard/AdminDashboard';
 import ShopAdmin from './component/Shop/ShopAdmin';
 import Checkout from './component/Checkout/Checkout';
 import ProtectedRoute from './component/Auth/ProtectedRoute';
+import RoleRedirector from './component/Auth/RoleRedirector';
 import Footer from './component/Layout/Footer';
 import NotFound from './component/Common/NotFound';
 import UserRoleDebugger from './component/Common/UserRoleDebugger';
@@ -32,9 +33,9 @@ function App() {
       <CssBaseline />
       <NotificationProvider>
         <AuthProvider>
-          <CartProvider>
-            <Router>
+          <CartProvider>            <Router>
             <div className="App" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+              <RoleRedirector />
               <Navbar />
               <main style={{ flex: 1 }}>
                 <Routes>                

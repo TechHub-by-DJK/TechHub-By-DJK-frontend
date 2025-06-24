@@ -1,0 +1,12 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Test TechHub Shop Owner Login Redirect",
+			"type": "shell",
+			"command": "echo \"Manual Testing Steps for Shop Owner Login Redirect\n\n1. Start the React app with 'npm start'\n2. Log in as a shop owner\n3. Verify you're redirected to /dashboard/shop\n4. Check the Navbar - you should see 'My Shop' button\n5. Verify Cart icon is hidden\n6. Try navigating to / (home) - should redirect to shop dashboard\n7. Log out and back in - verify redirection still works\n8. Test with the URL 'http://localhost:3000/debug-role' to troubleshoot if needed\n\"",
+			"isBackground": false,
+			"group": "test"
+		}
+	]
+}
