@@ -1,96 +1,10 @@
-import React from 'react';
-import { Box, Container, Typography, Button } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
-import { Home as HomeIcon, ArrowBack as BackIcon } from '@mui/icons-material';
-
-const NotFound = () => {
-  const navigate = useNavigate();
-
-  return (
-    <Container maxWidth="md" sx={{ py: 8 }}>
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          textAlign: 'center',
-          minHeight: '50vh',
-          justifyContent: 'center'
-        }}
-      >
-        <Typography
-          variant="h1"
-          sx={{
-            fontSize: { xs: '6rem', md: '8rem' },
-            fontWeight: 'bold',
-            color: 'primary.main',
-            lineHeight: 1
-          }}
-        >
-          404
-        </Typography>
-        
-        <Typography variant="h4" sx={{ mb: 2, fontWeight: 'bold' }}>
-          Page Not Found
-        </Typography>
-        
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 4, maxWidth: 400 }}>
-          Sorry, the page you are looking for doesn't exist or has been moved. 
-          Let's get you back on track.
-        </Typography>
-        
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <Button
-            variant="contained"
-            startIcon={<HomeIcon />}
-            onClick={() => navigate('/')}
-            size="large"
+import React from 'react';import {   Box,   Container,   Typography,   Button,   Paper,   Grid,  Divider} from '@mui/material';import { useNavigate } from 'react-router-dom';import {   Home as HomeIcon,   ArrowBack as BackIcon,   Search as SearchIcon,  SentimentVeryDissatisfied as SadIcon } from '@mui/icons-material';const NotFound = () => {  const navigate = useNavigate();  return (    <Container maxWidth="md" sx={{ py: 8 }}>      <Paper         elevation={3}         sx={{           p: { xs: 3, md: 5 },           borderRadius: 4,          background: 'linear-gradient(145deg, #1a1a2e 0%, #16213e 100%)'        }}      >        <Grid container spacing={4} alignItems="center">          <Grid item xs={12} md={6}>            <Box              sx={{                display: 'flex',                flexDirection: 'column',                alignItems: { xs: 'center', md: 'flex-start' },                textAlign: { xs: 'center', md: 'left' },              }}            >              <Typography                variant="h1"                sx={{                  fontSize: { xs: '6rem', md: '8rem' },                  fontWeight: 'bold',                  color: 'primary.main',                  lineHeight: 0.8,                  mb: 2,                  background: 'linear-gradient(45deg, #e91e63 30%, #f48fb1 90%)',                  backgroundClip: 'text',                  textFillColor: 'transparent',                  WebkitBackgroundClip: 'text',                  WebkitTextFillColor: 'transparent',                }}              >                404              </Typography>              <Typography variant="h4" component="h2" gutterBottom>                Page Not Found              </Typography>              <Typography variant="body1" color="text.secondary" sx={{ mb: 4, maxWidth: 400 }}>                The page you are looking for doesn't exist or has been moved.                Please check the URL or navigate back to the homepage.              </Typography>              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>                <Button                   variant="contained"                   color="primary"                   startIcon={<HomeIcon />}                  onClick={() => navigate('/')}                  sx={{                     borderRadius: 8,                    px: 3                  }}                >                  Go Home                </Button>                <Button                   variant="outlined"                  startIcon={<BackIcon />}                  onClick={() => navigate(-1)}                  sx={{                     borderRadius: 8,                    px: 3                  }}                >                  Go Back                </Button>              </Box>            </Box>          </Grid>          <Grid item xs={12} md={6}>            <Box              sx={{                display: 'flex',                justifyContent: 'center',                alignItems: 'center',              }}            >              <Box                component="img"                src="https://images.unsplash.com/photo-1579373903781-fd5c0c30c4cd?w=400"                alt="404 Illustration"                sx={{                  maxWidth: '100%',                  height: 'auto',                  borderRadius: 3,                  boxShadow: '0 10px 30px rgba(0,0,0,0.3)'                }}              />            </Box>          </Grid>        </Grid>                <Divider sx={{ my: 4 }} />                <Box sx={{ textAlign: 'center' }}>          <Typography variant="subtitle1" gutterBottom>            Looking for something specific?          </Typography>          <Button             variant="outlined"             color="secondary"             startIcon={<SearchIcon />}            onClick={() => navigate('/search')}
+            sx={{ mt: 1, borderRadius: 8 }}
           >
-            Go Home
-          </Button>
-          
-          <Button
-            variant="outlined"
-            startIcon={<BackIcon />}
-            onClick={() => navigate(-1)}
-            size="large"
-          >
-            Go Back
+            Search Products
           </Button>
         </Box>
-        
-        <Box sx={{ mt: 6 }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Popular Sections
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <Button
-              variant="text"
-              onClick={() => navigate('/search?q=laptop')}
-            >
-              Laptops
-            </Button>
-            <Button
-              variant="text"
-              onClick={() => navigate('/search?q=desktop')}
-            >
-              Desktops
-            </Button>
-            <Button
-              variant="text"
-              onClick={() => navigate('/gadgets')}
-            >
-              Tech Gadgets
-            </Button>
-            <Button
-              variant="text"
-              onClick={() => navigate('/search?q=gaming')}
-            >
-              Gaming
-            </Button>
-          </Box>
-        </Box>
-      </Box>
+      </Paper>
     </Container>
   );
 };
