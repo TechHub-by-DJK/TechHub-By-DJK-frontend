@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Box, 
   Button, 
@@ -9,85 +9,113 @@ import {
   List,
   ListItem,
   ListItemIcon,
-  ListItemText
+  ListItemText,
+  Divider,
+  Chip,
+  Tooltip,
+  IconButton
 } from '@mui/material';
 import {
   CheckCircle as SuccessIcon,
   Error as ErrorIcon,
-  Info as InfoIcon
+  Info as InfoIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
-import { apiService } from '../../services/api';
+import ApiService from '../../services/api';
 
+/**
+ * Backend Connection Test Component
+ * 
+ * Tests and displays the status of the backend connection.
+ * Performs various tests to check backend connectivity and functionality.
+ */
 const BackendConnectionTest = () => {
   const [testResults, setTestResults] = useState([]);
   const [testing, setTesting] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('unknown'); // 'online', 'offline', 'unknown'
+  const [stats, setStats] = useState({
+    success: 0,
+    failed: 0,
+    total: 0
+  });
 
-  const addResult = (test, status, message) => {
-    setTestResults(prev => [...prev, { test, status, message, timestamp: new Date() }]);
-  };
+  const addResult = useCallback((test, status, message, details = null) => {
+    setTestResults(prev => [
+      ...prev, 
+      { 
+        test, 
+        status, // 'success', 'error', 'info'
+        message, 
+        details,
+        timestamp: new Date() 
+      }
+    ]);
+    
+    setStats(prev => ({
+      ...prev,
+      [status === 'success' ? 'success' : 'failed']: prev[status === 'success' ? 'success' : 'failed'] + 1,
+      total: prev.total + 1
+    }));
+  }, []);
 
-  const runConnectivityTests = async () => {
+  const runConnectivityTests = useCallback(async () => {
     setTesting(true);
     setTestResults([]);
+    setStats({ success: 0, failed: 0, total: 0 });
+    setConnectionStatus('unknown');
 
     // Test 1: Basic connectivity
     addResult('Connection Test', 'info', 'Testing backend connectivity...');
     
     try {
       // Try a simple endpoint that should exist
-      const response = await fetch('http://localhost:5454/actuator/health', {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
+      const response = await fetch('http://localhost:5454/api/health', {
+        method: 'GET'
       });
       
       if (response.ok) {
         addResult('Backend Health', 'success', 'Backend is responding successfully');
+        setConnectionStatus('online');
       } else {
         addResult('Backend Health', 'error', `Backend returned status: ${response.status}`);
+        setConnectionStatus('offline');
       }
     } catch (error) {
       addResult('Backend Health', 'error', `Connection failed: ${error.message}`);
+      setConnectionStatus('offline');
     }
 
-    // Test 2: CORS check
-    addResult('CORS Test', 'info', 'Testing CORS configuration...');
+    // Test 2: Auth endpoints
     try {
-      const response = await fetch('http://localhost:5454/auth/signup', {
+      const response = await fetch('http://localhost:5454/auth/signin', {
         method: 'OPTIONS',
         headers: {
           'Origin': window.location.origin,
           'Access-Control-Request-Method': 'POST',
-          'Access-Control-Request-Headers': 'Content-Type'
+          'Access-Control-Request-Headers': 'Content-Type, Authorization'
         }
       });
       
       if (response.ok) {
-        addResult('CORS Configuration', 'success', 'CORS is properly configured');
+        addResult('Auth API', 'success', 'Authentication endpoints are accessible');
       } else {
-        addResult('CORS Configuration', 'error', 'CORS might not be configured correctly');
+        addResult('Auth API', 'error', `Authentication endpoints returned status: ${response.status}`);
       }
     } catch (error) {
-      addResult('CORS Configuration', 'error', `CORS test failed: ${error.message}`);
-    }    // Test 3: API Service test with proper signup format
-    addResult('API Service Test', 'info', 'Testing API service with proper request format...');
+      addResult('Auth API', 'error', `Authentication endpoint check failed: ${error.message}`);
+    }
+
+    // Test 3: API Service test
+    addResult('API Service Test', 'info', 'Testing API service functionality...');
     try {
-      // Test with a properly formatted signup request
-      const testSignup = {
-        email: "test@example.com",
-        password: "testpassword123",
-        fullName: "Test User",
-        role: "ROLE_CUSTOMER"
-      };
-      
-      await apiService.register(testSignup);
-      addResult('API Service', 'success', 'API service working correctly');
+      // Use the ApiService to make a basic call
+      await ApiService.getAllShops();
+      addResult('API Service', 'success', 'API Service works correctly');
     } catch (error) {
       if (error.message.includes('Failed to fetch') || error.message.includes('ERR_CONNECTION_REFUSED')) {
         addResult('API Service', 'error', 'Backend connection issue detected');
       } else if (error.message.includes('400')) {
         addResult('API Service', 'success', 'Backend is accessible (validation error expected for test data)');
-      } else if (error.message.includes('409')) {
-        addResult('API Service', 'success', 'Backend is accessible (user already exists - this is normal)');
       } else if (error.message.includes('401') || error.message.includes('403')) {
         addResult('API Service', 'success', 'Backend is accessible (authentication required)');
       } else {
@@ -95,126 +123,114 @@ const BackendConnectionTest = () => {
       }
     }
 
-    // Test 4: Test signup endpoint format
-    addResult('Signup Format Test', 'info', 'Testing correct signup request format...');
-    try {
-      const response = await fetch('http://localhost:5454/auth/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: "test@example.com",
-          password: "testpassword123",
-          fullName: "Test User",
-          role: "ROLE_CUSTOMER"
-        })
-      });
-      
-      if (response.ok) {
-        addResult('Signup Endpoint', 'success', 'Signup endpoint working correctly');
-      } else if (response.status === 400) {
-        addResult('Signup Endpoint', 'success', 'Signup endpoint accessible (validation error expected)');
-      } else if (response.status === 409) {
-        addResult('Signup Endpoint', 'success', 'Signup endpoint accessible (user exists - normal for test)');
-      } else {
-        addResult('Signup Endpoint', 'warning', `Signup endpoint returned status: ${response.status}`);
+    // Test 4: User Profile endpoint
+    if (localStorage.getItem('jwt')) {
+      addResult('User Profile', 'info', 'Testing authenticated user profile endpoint...');
+      try {
+        await ApiService.getUserProfile();
+        addResult('User Profile', 'success', 'User profile endpoint is working');
+      } catch (error) {
+        addResult('User Profile', 'error', `User profile endpoint failed: ${error.message}`);
       }
-    } catch (error) {
-      addResult('Signup Endpoint', 'error', `Signup test failed: ${error.message}`);
     }
 
     setTesting(false);
-  };
+  }, [addResult]);
 
-  const getResultIcon = (status) => {
-    switch (status) {
-      case 'success': return <SuccessIcon color="success" />;
-      case 'error': return <ErrorIcon color="error" />;
-      case 'info': return <InfoIcon color="info" />;
-      default: return <InfoIcon />;
-    }
-  };
-
-  const getResultColor = (status) => {
-    switch (status) {
-      case 'success': return 'success.main';
-      case 'error': return 'error.main';
-      case 'info': return 'info.main';
-      default: return 'text.primary';
-    }
-  };
+  useEffect(() => {
+    // Auto-run test when component mounts
+    runConnectivityTests();
+  }, [runConnectivityTests]);
 
   return (
-    <Paper sx={{ p: 3, m: 2 }}>
-      <Typography variant="h5" gutterBottom>
-        Backend Connection Diagnostics
-      </Typography>
-      
-      <Alert severity="info" sx={{ mb: 2 }}>
-        <Typography variant="body2">
-          Current backend URL: <strong>http://localhost:5454</strong>
+    <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h5" component="h2">
+          Backend Connectivity Test
         </Typography>
-        <Typography variant="body2">
-          Frontend URL: <strong>{window.location.origin}</strong>
-        </Typography>
-      </Alert>
-
-      <Button 
-        variant="contained" 
-        onClick={runConnectivityTests}
-        disabled={testing}
-        sx={{ mb: 2 }}
-      >
-        {testing ? (
-          <>
-            <CircularProgress size={20} sx={{ mr: 1 }} />
-            Running Tests...
-          </>
-        ) : (
-          'Run Connection Tests'
-        )}
-      </Button>
-
-      {testResults.length > 0 && (
         <Box>
-          <Typography variant="h6" gutterBottom>
-            Test Results:
-          </Typography>
-          <List>
-            {testResults.map((result, index) => (
-              <ListItem key={index}>
-                <ListItemIcon>
-                  {getResultIcon(result.status)}
-                </ListItemIcon>
-                <ListItemText
-                  primary={result.test}
-                  secondary={
-                    <Typography 
-                      variant="body2" 
-                      color={getResultColor(result.status)}
-                    >
-                      {result.message}
-                    </Typography>
-                  }
-                />
-              </ListItem>
-            ))}
-          </List>
+          <Tooltip title="Rerun tests">
+            <IconButton 
+              onClick={runConnectivityTests}
+              disabled={testing}
+              color="primary"
+            >
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+          <Chip 
+            label={connectionStatus === 'online' ? 'Online' : connectionStatus === 'offline' ? 'Offline' : 'Unknown'}
+            color={connectionStatus === 'online' ? 'success' : connectionStatus === 'offline' ? 'error' : 'default'}
+            sx={{ ml: 1 }}
+          />
+        </Box>
+      </Box>
+      
+      {testing && (
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <CircularProgress size={20} sx={{ mr: 1 }} />
+          <Typography>Running connectivity tests...</Typography>
         </Box>
       )}
 
-      <Alert severity="warning" sx={{ mt: 2 }}>
-        <Typography variant="h6" gutterBottom>
-          Backend Setup Checklist:
+      {stats.total > 0 && (
+        <Box sx={{ mb: 2, display: 'flex', gap: 2 }}>
+          <Chip 
+            icon={<SuccessIcon fontSize="small" />} 
+            label={`${stats.success} Passed`} 
+            color="success"
+            variant="outlined" 
+          />
+          <Chip 
+            icon={<ErrorIcon fontSize="small" />} 
+            label={`${stats.failed} Failed`} 
+            color="error"
+            variant="outlined" 
+          />
+        </Box>
+      )}
+
+      {connectionStatus === 'offline' && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          <Typography variant="subtitle1" fontWeight="bold">
+            Cannot connect to backend server
+          </Typography>
+          <Typography variant="body2">
+            Make sure the backend server is running on http://localhost:5454
+          </Typography>
+        </Alert>
+      )}
+
+      <List>
+        {testResults.map((result, index) => (
+          <React.Fragment key={index}>
+            <ListItem>
+              <ListItemIcon>
+                {result.status === 'success' && <SuccessIcon color="success" />}
+                {result.status === 'error' && <ErrorIcon color="error" />}
+                {result.status === 'info' && <InfoIcon color="info" />}
+              </ListItemIcon>
+              <ListItemText 
+                primary={result.test} 
+                secondary={result.message} 
+              />
+            </ListItem>
+            {index < testResults.length - 1 && <Divider />}
+          </React.Fragment>
+        ))}
+      </List>
+
+      {testResults.length === 0 && !testing && (
+        <Typography color="text.secondary" align="center" sx={{ py: 4 }}>
+          No test results available. Click the refresh button to run tests.
         </Typography>
-        <Typography variant="body2" component="div">
-          ✅ Backend running on port 5454<br/>
-          ✅ Database connected and running<br/>
-          ✅ CORS configured for http://localhost:3000<br/>
-          ✅ Spring Boot application started successfully<br/>
+      )}
+
+      <Box sx={{ mt: 2 }}>
+        <Typography variant="subtitle2" color="text.secondary">
+          Note: These tests check connectivity to the backend server at http://localhost:5454.
         </Typography>
-      </Alert>
+      </Box>
     </Paper>
   );
 };
