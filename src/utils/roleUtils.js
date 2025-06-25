@@ -10,8 +10,8 @@
 export const isShopOwner = (user) => {
   if (!user) return false;
   
-  // Check for string role 'SHOP_OWNER' or numeric role 1
-  return user.role === 'SHOP_OWNER' || user.role === 1;
+  // Check for both string role variants ('SHOP_OWNER', 'ROLE_SHOP_OWNER') or numeric role 1
+  return user.role === 'SHOP_OWNER' || user.role === 'ROLE_SHOP_OWNER' || user.role === 1;
 };
 
 /**
@@ -22,8 +22,8 @@ export const isShopOwner = (user) => {
 export const isAdmin = (user) => {
   if (!user) return false;
   
-  // Check for string role 'ADMIN' or numeric role 2
-  return user.role === 'ADMIN' || user.role === 2;
+  // Check for both string role variants ('ADMIN', 'ROLE_ADMIN') or numeric role 2
+  return user.role === 'ADMIN' || user.role === 'ROLE_ADMIN' || user.role === 2;
 };
 
 /**
