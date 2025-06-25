@@ -168,12 +168,12 @@ const Profile = () => {
       setSaving(false);
     }
   };
-
   const getRoleIcon = (role) => {
     switch (role?.toLowerCase()) {
       case 'admin':
         return <AdminIcon color="error" />;
       case 'shop_owner':
+      case 'shopowner':
         return <StoreIcon color="info" />;
       default:
         return <PersonIcon color="primary" />;
@@ -185,9 +185,14 @@ const Profile = () => {
       case 'admin':
         return 'Administrator';
       case 'shop_owner':
+      case 'shopowner':
         return 'Shop Owner';
-      default:
+      case 'role_customer':
+      case 'customer':
         return 'Customer';
+      default:
+        // For debugging - show the actual role value
+        return role ? `${role}` : 'Customer';
     }
   };
 
