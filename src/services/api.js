@@ -22,9 +22,7 @@ class ApiService {
             headers['Authorization'] = `Bearer ${this.token}`;
         }
         return headers;
-    }
-
-    async request(endpoint, options = {}) {
+    }    async request(endpoint, options = {}) {
         const url = `${API_BASE_URL}${endpoint}`;
         const config = {
             headers: this.getHeaders(),
@@ -32,10 +30,22 @@ class ApiService {
         };
 
         try {
+            console.log(`Making API request to: ${url}`);
+            console.log('Request headers:', config.headers);
+            
             const response = await fetch(url, config);
             
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                // Try to get error details from response
+                let errorDetails = `HTTP error! status: ${response.status}`;
+                try {
+                    const errorBody = await response.text();
+                    console.error(`API Error Response (${response.status}):`, errorBody);
+                    errorDetails += ` - ${errorBody}`;
+                } catch (parseError) {
+                    console.error('Could not parse error response:', parseError);
+                }
+                throw new Error(errorDetails);
             }
             
             return await response.json();
@@ -96,19 +106,11 @@ class ApiService {
         queryParams.append('seasonal', filters.seasonal || false);
         
         if (filters.computer_category) {
-            queryParams.append('computer_category', filters.computer_category);
-        }
+            queryParams.append('computer_category', filters.computer_category);        }
 
-        return this.request(`/api/computer/shop/${shopId}?${queryParams.toString()}`);
-    }    async searchComputers(query) {
-        return this.request(`/api/computers/search?q=${encodeURIComponent(query)}`);
-    }
+        return this.request(`/api/computer/shop/${shopId}?${queryParams.toString()}`);    }
 
-    // TechGadget APIs
-    async getAllTechGadgets() {
-        return this.request('/api/techgadget');
-    }
-
+    // Computer Search and Recommendation APIs
     async getTechGadgetsByShop(shopId) {
         return this.request(`/api/techgadget/shop/${shopId}`);
     }
@@ -158,11 +160,17 @@ class ApiService {
 
     async getUserOrders() {
         return this.request('/api/order/user');
-    }
-
-    // Category APIs
+    }    // Category APIs
     async getShopCategories() {
         return this.request('/api/category/shop');
+    }
+
+    // Address APIs
+    async createAddress(addressData) {
+        return this.request('/api/address', {
+            method: 'POST',
+            body: JSON.stringify(addressData),
+        });
     }
 
     // Admin APIs (for shop owners)
@@ -244,19 +252,13 @@ class ApiService {
         return this.request(url);
     }
 
-    async updateOrderStatus(orderId, orderStatus) {
-        return this.request(`/api/admin/order/${orderId}/${orderStatus}`, {            method: 'PUT',
+    async updateOrderStatus(orderId, orderStatus) {        return this.request(`/api/admin/order/${orderId}/${orderStatus}`, {            method: 'PUT',
         });
     }
 
     // Search APIs
     async searchComputers(query) {
         return this.request(`/api/computers/search?q=${encodeURIComponent(query)}`);
-    }
-
-    // User Profile APIs
-    async getUserProfile() {
-        return this.request('/api/users/profile');
     }
 
     async updateUserProfile(profileData) {
@@ -300,9 +302,7 @@ class ApiService {
             method: 'PUT',
             body: JSON.stringify(gadgetData),
         });
-    }
-
-    async deleteTechGadget(id) {
+    }    async deleteTechGadget(id) {
         return this.request(`/api/tech-gadgets/${id}`, {
             method: 'DELETE',
         });
@@ -310,35 +310,7 @@ class ApiService {
 
     // Shop Owner APIs
     async getShopByOwner() {
-        return this.request('/api/shops/my-shop');
-    }
-
-    async getShopComputers(shopId) {
-        return this.request(`/api/shops/${shopId}/computers`);
-    }
-
-    async getShopOrders(shopId) {
-        return this.request(`/api/shops/${shopId}/orders`);
-    }
-
-    async createComputer(computerData) {
-        return this.request('/api/computers', {
-            method: 'POST',
-            body: JSON.stringify(computerData),
-        });
-    }
-
-    async updateComputer(id, computerData) {
-        return this.request(`/api/computers/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(computerData),
-        });
-    }
-
-    async deleteComputer(id) {
-        return this.request(`/api/computers/${id}`, {
-            method: 'DELETE',
-        });
+        return this.request('/api/admin/shop/user');
     }
 
     // Admin APIs
