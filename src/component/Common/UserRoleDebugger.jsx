@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Box, Paper, Typography, Button, Divider, FormControl, InputLabel, Select, MenuItem, Alert, Chip, Grid } from '@mui/material';
+import React, { useState } from 'react';
+import { Box, Paper, Typography, Button, Divider, Alert } from '@mui/material';
 import { useAuth } from '../../contexts/AuthContext';
+import { isShopOwner, isAdmin, isCustomer } from '../../utils/roleUtils';
 import StoreIcon from '@mui/icons-material/Store';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import PersonIcon from '@mui/icons-material/Person';
@@ -9,16 +10,54 @@ import BuildIcon from '@mui/icons-material/Build';
 
 const UserRoleDebugger = () => {
   const { user, isAuthenticated, checkAuthStatus } = useAuth();
-  const [selectedRole, setSelectedRole] = useState('');
-  const [apiResponse, setApiResponse] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
-  useEffect(() => {
-    if (user?.role) {
-      setSelectedRole(user.role);
+  // Test role detection with ROLE_SHOP_OWNER
+  const testRoleShopOwnerDetection = () => {
+    const testUser = { role: 'ROLE_SHOP_OWNER' };
+    const detected = isShopOwner(testUser);
+    
+    if (detected) {
+      setSuccessMessage('✓ ROLE_SHOP_OWNER successfully detected as shop owner!');
+    } else {
+      setErrorMessage('✗ ROLE_SHOP_OWNER not detected as shop owner - role detection needs fixing');
     }
-  }, [user]);
+    
+    setTimeout(() => {
+      setSuccessMessage('');
+      setErrorMessage('');
+    }, 5000);
+  };
+
+  const testAllRoleVariants = () => {
+    const testCases = [
+      { user: { role: 'SHOP_OWNER' }, expected: true, description: 'SHOP_OWNER string' },
+      { user: { role: 'ROLE_SHOP_OWNER' }, expected: true, description: 'ROLE_SHOP_OWNER string' },
+      { user: { role: 1 }, expected: true, description: 'Numeric 1' },
+      { user: { role: 'ROLE_CUSTOMER' }, expected: false, description: 'ROLE_CUSTOMER string' },
+      { user: { role: 0 }, expected: false, description: 'Numeric 0' }
+    ];
+    
+    const results = testCases.map(test => ({
+      ...test,
+      actual: isShopOwner(test.user)
+    }));
+    
+    const allPassed = results.every(r => r.actual === r.expected);
+    
+    if (allPassed) {
+      setSuccessMessage('✓ All role detection tests passed! Both SHOP_OWNER and ROLE_SHOP_OWNER are recognized.');
+    } else {
+      const failed = results.filter(r => r.actual !== r.expected);
+      setErrorMessage(`✗ ${failed.length} role detection tests failed: ${failed.map(f => f.description).join(', ')}`);
+    }
+    
+    setTimeout(() => {
+      setSuccessMessage('');
+      setErrorMessage('');
+    }, 5000);
+  };
   
   const handleRefreshUserData = () => {
     // Force a page refresh to re-fetch user data
@@ -119,8 +158,7 @@ const UserRoleDebugger = () => {
         <Typography variant="body1"><strong>Authentication Status:</strong> {isAuthenticated ? 'Authenticated' : 'Not Authenticated'}</Typography>
       </Box>
         <Box sx={{ mb: 2 }}>
-        <Typography variant="body1"><strong>User Role Information:</strong></Typography>
-        <Box sx={{ 
+        <Typography variant="body1"><strong>User Role Information:</strong></Typography>        <Box sx={{ 
           bgcolor: '#f5f5f5', 
           p: 2, 
           borderRadius: 1,
@@ -130,7 +168,9 @@ const UserRoleDebugger = () => {
           <Typography><strong>Role in localStorage:</strong> {localStorage.getItem('userRole') || 'Not stored'}</Typography>
           <Typography><strong>Expected Format:</strong> 'SHOP_OWNER' (string) for shop owner, 'ROLE_CUSTOMER' for customer, 'ADMIN' for admin</Typography>
           <Typography><strong>Role Type:</strong> {user ? typeof user.role : 'N/A'}</Typography>
-          <Typography><strong>Is Valid Shop Owner:</strong> {user && (user.role === 'SHOP_OWNER' || user.role === 1) ? '✓ Yes' : '✗ No'}</Typography>
+          <Typography><strong>Is Shop Owner (isShopOwner):</strong> {user && isShopOwner(user) ? '✓ Yes' : '✗ No'}</Typography>
+          <Typography><strong>Is Admin (isAdmin):</strong> {user && isAdmin(user) ? '✓ Yes' : '✗ No'}</Typography>
+          <Typography><strong>Is Customer (isCustomer):</strong> {user && isCustomer(user) ? '✓ Yes' : '✗ No'}</Typography>
           <Typography color="text.secondary" sx={{ mt: 1 }}>
             Note: Backend returns numeric roles (0=customer, 1=shop owner, 2=admin) but frontend expects string roles
           </Typography>
@@ -165,6 +205,28 @@ const UserRoleDebugger = () => {
           userRole: {localStorage.getItem('userRole') || 'Not set'}
         </Box>
       </Box>
+        <Box sx={{ mb: 3 }}>
+        <Typography variant="body1" gutterBottom><strong>Role Detection Tests:</strong></Typography>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+          <Button 
+            variant="contained" 
+            color="info"
+            onClick={testRoleShopOwnerDetection}
+          >
+            Test ROLE_SHOP_OWNER Detection
+          </Button>
+          
+          <Button 
+            variant="contained" 
+            color="info"
+            onClick={testAllRoleVariants}
+          >
+            Test All Role Variants
+          </Button>
+        </Box>
+      </Box>
+      
+      <Divider sx={{ my: 2 }} />
       
       <Box sx={{ mb: 3 }}>
         <Typography variant="body1" gutterBottom><strong>Fix Role:</strong></Typography>
