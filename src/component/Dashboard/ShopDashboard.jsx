@@ -31,7 +31,12 @@ import {
   Menu,
   MenuItem as MenuItemComponent,
   ListItemIcon,
-  ListItemText
+  ListItemText,  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Divider,
+  Snackbar
 } from '@mui/material';
 import {
   Store as StoreIcon,
@@ -44,7 +49,9 @@ import {
   Visibility as ViewIcon,
   MoreVert as MoreIcon,
   TrendingUp as TrendingUpIcon,
-  AttachMoney as MoneyIcon
+  AttachMoney as MoneyIcon,  Business as BusinessIcon,
+  Category as CategoryIcon,
+  Settings as SettingsIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiService } from '../../services/api';
@@ -53,6 +60,8 @@ const ShopDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  
+  // State Management
   const [activeTab, setActiveTab] = useState(0);
   const [showSuccessAlert, setShowSuccessAlert] = useState(
     location.state?.shopCreated || false
@@ -61,68 +70,151 @@ const ShopDashboard = () => {
   const [computers, setComputers] = useState([]);
   const [techGadgets, setTechGadgets] = useState([]);
   const [orders, setOrders] = useState([]);
-  const [analytics, setAnalytics] = useState({});  const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState([]);
+  const [analytics, setAnalytics] = useState({});
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [hasNoShop, setHasNoShop] = useState(false);
-    // Dialog states
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+
+  // Dialog states for Shop Management
+  const [shopDialogOpen, setShopDialogOpen] = useState(false);
+  const [shopFormData, setShopFormData] = useState({
+    name: '',
+    description: '',
+    buildingtype: 'ELECTRONICS',
+    address: {
+      streetAddress: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      country: 'Sri Lanka'
+    },
+    contactInformation: {
+      email: '',
+      phone: '',
+      website: ''
+    },
+    openingHours: '',
+    images: []
+  });
+
+  // Dialog states for Product Management
   const [computerDialogOpen, setComputerDialogOpen] = useState(false);
   const [gadgetDialogOpen, setGadgetDialogOpen] = useState(false);
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [selectedComputer, setSelectedComputer] = useState(null);
   const [selectedGadget, setSelectedGadget] = useState(null);
+  
+  // Enhanced form data for computers based on backend structure
   const [computerFormData, setComputerFormData] = useState({
     name: '',
-    brand: '',
-    price: '',
     description: '',
-    processor: '',
+    price: '',
+    brand: '',
+    cpu: '',
     ram: '',
     storage: '',
-    graphics: '',
-    imageUrl: ''
+    gpu: '',
+    operatingSystem: '',
+    rating: 0,
+    stockQuantity: 0,
+    computerType: 'PC', // LAPTOP or PC
+    images: [],
+    isHomeUser: false,
+    isBusinessUser: false,
+    isGamer: false,
+    isDesigner: false,
+    isDeveloper: false,
+    isSeasonal: false,
+    category: null,
+    shopId: null
   });
+
+  // Enhanced form data for tech gadgets based on backend structure
   const [gadgetFormData, setGadgetFormData] = useState({
     name: '',
-    brand: '',
-    price: '',
     description: '',
-    category: '',
-    compatibility: '',
-    features: '',
-    imageUrl: ''
-  });  const [productTab, setProductTab] = useState(0); // 0: Computers, 1: Tech Gadgets  // Menu state  const [menuAnchor, setMenuAnchor] = useState(null);
+    price: '',
+    brand: '',
+    specs: '',
+    images: [],
+    available: true,
+    categoryId: null,
+    shopId: null,
+    compatibilityType: 'BOTH' // LAPTOP, PC, BOTH
+  });
+
+  // Category form data
+  const [categoryFormData, setCategoryFormData] = useState({
+    name: ''
+  });
+
+  const [productTab, setProductTab] = useState(0); // 0: Computers, 1: Tech Gadgets
+  
+  // Menu state
+  const [menuAnchor, setMenuAnchor] = useState(null);
   const [selectedItemId, setSelectedItemId] = useState(null);
-  const [menuType, setMenuType] = useState('');
-  const loadShopData = async () => {
+  const [menuType, setMenuType] = useState('');  const loadShopData = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
       
       // First check if the shop exists
       try {
         const shopData = await apiService.getShopByOwner();
         setShop(shopData);
         
-        // If we got here, shop exists, so we can load the rest of the data
-        const [computersResponse, ordersResponse, gadgetsResponse] = await Promise.allSettled([
+        // Load all shop-related data in parallel for better performance
+        const [computersResponse, ordersResponse, gadgetsResponse, categoriesResponse] = await Promise.allSettled([
           apiService.getShopComputers(shopData.id),
           apiService.getShopOrders(shopData.id),
-          apiService.getTechGadgetsByShop(shopData.id)
+          apiService.getTechGadgetsByShop(shopData.id),
+          apiService.getShopCategories()
         ]);
   
+        // Handle computers data
         if (computersResponse.status === 'fulfilled') {
-          setComputers(computersResponse.value?.data || []);
+          const computersData = computersResponse.value?.data || computersResponse.value || [];
+          setComputers(Array.isArray(computersData) ? computersData : []);
+        } else {
+          console.warn('Failed to load computers:', computersResponse.reason);
+          setComputers([]);
         }
   
+        // Handle orders data and calculate analytics
         if (ordersResponse.status === 'fulfilled') {
-          setOrders(ordersResponse.value?.data || []);
-          calculateAnalytics(ordersResponse.value?.data || []);
+          const ordersData = ordersResponse.value?.data || ordersResponse.value || [];
+          setOrders(Array.isArray(ordersData) ? ordersData : []);
+          calculateAnalytics(Array.isArray(ordersData) ? ordersData : []);
+        } else {
+          console.warn('Failed to load orders:', ordersResponse.reason);
+          setOrders([]);
+          calculateAnalytics([]);
         }
   
+        // Handle tech gadgets data
         if (gadgetsResponse.status === 'fulfilled') {
-          setTechGadgets(gadgetsResponse.value?.data || []);
+          const gadgetsData = gadgetsResponse.value?.data || gadgetsResponse.value || [];
+          setTechGadgets(Array.isArray(gadgetsData) ? gadgetsData : []);
+        } else {
+          console.warn('Failed to load tech gadgets:', gadgetsResponse.reason);
+          setTechGadgets([]);
         }
-      } catch (shopError) {        // If error is 404, shop doesn't exist
+
+        // Handle categories data
+        if (categoriesResponse.status === 'fulfilled') {
+          const categoriesData = categoriesResponse.value?.data || categoriesResponse.value || [];
+          setCategories(Array.isArray(categoriesData) ? categoriesData : []);
+        } else {
+          console.warn('Failed to load categories:', categoriesResponse.reason);
+          setCategories([]);
+        }
+
+      } catch (shopError) {
+        // If error is 404, shop doesn't exist
         if (shopError.message && shopError.message.includes('404')) {
-          // Set a specific error message instead of immediate redirect
+          console.log('Shop not found for this user, showing shop creation interface');
           setError('You do not have a shop yet. Please create one to access your shop dashboard.');
           setHasNoShop(true);
           setLoading(false);
@@ -134,16 +226,17 @@ const ShopDashboard = () => {
       }
     } catch (error) {
       console.error('Error loading shop data:', error);
-      setError('Failed to load shop data');
+      setError('Failed to load shop data. Please try again.');
     } finally {
       setLoading(false);
     }
-  };  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (isShopOwner(user)) {
       loadShopData();
     }
-  }, [user]);
+  }, [user, loadShopData]);
 
   const calculateAnalytics = (ordersData) => {
     const today = new Date();
@@ -161,19 +254,31 @@ const ShopDashboard = () => {
       averageOrderValue: ordersData.length > 0 ? totalRevenue / ordersData.length : 0
     });
   };
-
+  // Enhanced Computer Management Functions
   const handleAddComputer = () => {
     setSelectedComputer(null);
     setComputerFormData({
       name: '',
-      brand: '',
-      price: '',
       description: '',
-      processor: '',
+      price: '',
+      brand: '',
+      cpu: '',
       ram: '',
       storage: '',
-      graphics: '',
-      imageUrl: ''
+      gpu: '',
+      operatingSystem: '',
+      rating: 0,
+      stockQuantity: 0,
+      computerType: 'PC',
+      images: [],
+      isHomeUser: false,
+      isBusinessUser: false,
+      isGamer: false,
+      isDesigner: false,
+      isDeveloper: false,
+      isSeasonal: false,
+      category: categories.length > 0 ? categories[0] : null,
+      shopId: shop?.id
     });
     setComputerDialogOpen(true);
   };
@@ -182,64 +287,108 @@ const ShopDashboard = () => {
     setSelectedComputer(computer);
     setComputerFormData({
       name: computer.name || '',
-      brand: computer.brand || '',
-      price: computer.price || '',
       description: computer.description || '',
-      processor: computer.processor || '',
+      price: computer.price || '',
+      brand: computer.brand || '',
+      cpu: computer.cpu || '',
       ram: computer.ram || '',
       storage: computer.storage || '',
-      graphics: computer.graphics || '',
-      imageUrl: computer.imageUrl || ''
+      gpu: computer.gpu || '',
+      operatingSystem: computer.operatingSystem || '',
+      rating: computer.rating || 0,
+      stockQuantity: computer.stockQuantity || 0,
+      computerType: computer.computerType || 'PC',
+      images: computer.images || [],
+      isHomeUser: computer.isHomeUser || false,
+      isBusinessUser: computer.isBusinessUser || false,
+      isGamer: computer.isGamer || false,
+      isDesigner: computer.isDesigner || false,
+      isDeveloper: computer.isDeveloper || false,
+      isSeasonal: computer.isSeasonal || false,
+      category: computer.computerCategory || null,
+      shopId: shop?.id
     });
     setComputerDialogOpen(true);
   };
 
   const handleSaveComputer = async () => {
     try {
+      setLoading(true);
+      
+      // Prepare computer data according to backend CreateComputerRequest structure
       const computerData = {
-        ...computerFormData,
-        price: parseFloat(computerFormData.price),
-        ram: parseInt(computerFormData.ram),
-        shopId: shop.id
+        name: computerFormData.name,
+        description: computerFormData.description,
+        price: parseInt(computerFormData.price),
+        brand: computerFormData.brand,
+        cpu: computerFormData.cpu,
+        ram: computerFormData.ram,
+        storage: computerFormData.storage,
+        gpu: computerFormData.gpu,
+        operatingSystem: computerFormData.operatingSystem,
+        rating: parseFloat(computerFormData.rating) || 0,
+        stockQuantity: parseInt(computerFormData.stockQuantity) || 0,
+        computerType: computerFormData.computerType,
+        images: computerFormData.images,
+        isHomeUser: computerFormData.isHomeUser,
+        isBusinessUser: computerFormData.isBusinessUser,
+        isGamer: computerFormData.isGamer,
+        isDesigner: computerFormData.isDesigner,
+        isDeveloper: computerFormData.isDeveloper,
+        isSeasonal: computerFormData.isSeasonal,
+        category: computerFormData.category,
+        shopId: shop.id,
+        includedComponents: [] // Empty for now
       };
 
       if (selectedComputer) {
         await apiService.updateComputer(selectedComputer.id, computerData);
+        setSnackbar({ open: true, message: 'Computer updated successfully!', severity: 'success' });
       } else {
         await apiService.createComputer(computerData);
+        setSnackbar({ open: true, message: 'Computer created successfully!', severity: 'success' });
       }
 
       setComputerDialogOpen(false);
       loadShopData(); // Reload data
     } catch (error) {
       console.error('Error saving computer:', error);
-      setError('Failed to save computer');
+      setSnackbar({ open: true, message: 'Failed to save computer. Please try again.', severity: 'error' });
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleDeleteComputer = async (computerId) => {
-    if (window.confirm('Are you sure you want to delete this computer?')) {
+    if (window.confirm('Are you sure you want to delete this computer? This action cannot be undone.')) {
       try {
+        setLoading(true);
         await apiService.deleteComputer(computerId);
+        setSnackbar({ open: true, message: 'Computer deleted successfully!', severity: 'success' });
         loadShopData(); // Reload data
       } catch (error) {
         console.error('Error deleting computer:', error);
-        setError('Failed to delete computer');
+        setSnackbar({ open: true, message: 'Failed to delete computer. Please try again.', severity: 'error' });
+      } finally {
+        setLoading(false);
       }
     }
   };
 
+  // Enhanced Tech Gadget Management Functions
   const handleAddGadget = () => {
     setSelectedGadget(null);
     setGadgetFormData({
       name: '',
-      brand: '',
-      price: '',
       description: '',
-      category: '',
-      compatibility: '',
-      features: '',
-      imageUrl: ''
+      price: '',
+      brand: '',
+      specs: '',
+      images: [],
+      available: true,
+      categoryId: categories.length > 0 ? categories[0].id : null,
+      shopId: shop?.id,
+      compatibilityType: 'BOTH'
     });
     setGadgetDialogOpen(true);
   };
@@ -248,53 +397,137 @@ const ShopDashboard = () => {
     setSelectedGadget(gadget);
     setGadgetFormData({
       name: gadget.name || '',
-      brand: gadget.brand || '',
-      price: gadget.price || '',
       description: gadget.description || '',
-      category: gadget.category || '',
-      compatibility: gadget.compatibility || '',
-      features: gadget.features || '',
-      imageUrl: gadget.imageUrl || ''
+      price: gadget.price || '',
+      brand: gadget.brand || '',
+      specs: gadget.specs || '',
+      images: gadget.images || [],
+      available: gadget.available !== undefined ? gadget.available : true,
+      categoryId: gadget.category?.id || null,
+      shopId: shop?.id,
+      compatibilityType: gadget.compatibilityType || 'BOTH'
     });
     setGadgetDialogOpen(true);
   };
 
   const handleSaveGadget = async () => {
     try {
+      setLoading(true);
+      
+      // Prepare gadget data according to backend CreateTechGadgetRequest structure
       const gadgetData = {
-        ...gadgetFormData,
+        name: gadgetFormData.name,
+        description: gadgetFormData.description,
         price: parseFloat(gadgetFormData.price),
-        shopId: shop.id
+        brand: gadgetFormData.brand,
+        specs: gadgetFormData.specs,
+        images: gadgetFormData.images,
+        available: gadgetFormData.available,
+        categoryId: gadgetFormData.categoryId,
+        shopId: shop.id,
+        compatibilityType: gadgetFormData.compatibilityType
       };
 
       if (selectedGadget) {
         await apiService.updateTechGadget(selectedGadget.id, gadgetData);
+        setSnackbar({ open: true, message: 'Tech gadget updated successfully!', severity: 'success' });
       } else {
         await apiService.createTechGadget(gadgetData);
+        setSnackbar({ open: true, message: 'Tech gadget created successfully!', severity: 'success' });
       }
 
       setGadgetDialogOpen(false);
       loadShopData(); // Reload data
     } catch (error) {
       console.error('Error saving tech gadget:', error);
-      setError('Failed to save tech gadget');
+      setSnackbar({ open: true, message: 'Failed to save tech gadget. Please try again.', severity: 'error' });
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleDeleteGadget = async (gadgetId) => {
-    if (window.confirm('Are you sure you want to delete this tech gadget?')) {
+    if (window.confirm('Are you sure you want to delete this tech gadget? This action cannot be undone.')) {
       try {
+        setLoading(true);
         await apiService.deleteTechGadget(gadgetId);
+        setSnackbar({ open: true, message: 'Tech gadget deleted successfully!', severity: 'success' });
         loadShopData(); // Reload data
       } catch (error) {
         console.error('Error deleting tech gadget:', error);
-        setError('Failed to delete tech gadget');
+        setSnackbar({ open: true, message: 'Failed to delete tech gadget. Please try again.', severity: 'error' });
+      } finally {
+        setLoading(false);
       }
     }
   };
 
+  // Category Management Functions
+  const handleCreateCategory = async () => {
+    try {
+      setLoading(true);
+      
+      const categoryData = {
+        name: categoryFormData.name
+      };
+
+      await apiService.createCategory(categoryData);
+      setSnackbar({ open: true, message: 'Category created successfully!', severity: 'success' });
+      setCategoryDialogOpen(false);
+      setCategoryFormData({ name: '' });
+      
+      // Reload categories
+      const categoriesResponse = await apiService.getShopCategories();
+      setCategories(categoriesResponse?.data || categoriesResponse || []);
+    } catch (error) {
+      console.error('Error creating category:', error);
+      setSnackbar({ open: true, message: 'Failed to create category. Please try again.', severity: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteCategory = async (categoryId) => {
+    try {
+      await apiService.deleteCategory(categoryId);
+      setCategories(prev => prev.filter(cat => cat.id !== categoryId));
+      setSnackbar({ open: true, message: 'Category deleted successfully', severity: 'success' });
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      setSnackbar({ open: true, message: 'Failed to delete category', severity: 'error' });
+    }
+  };
+
+  const handleSaveShop = async () => {
+    try {
+      setLoading(true);
+      let response;
+      
+      if (shop) {
+        // Update existing shop
+        response = await apiService.updateShop(shop.id, shopFormData);
+        setShop(response.data || response);
+        setSnackbar({ open: true, message: 'Shop updated successfully', severity: 'success' });
+      } else {
+        // Create new shop
+        response = await apiService.createShop(shopFormData);
+        setShop(response.data || response);
+        setSnackbar({ open: true, message: 'Shop created successfully', severity: 'success' });
+      }
+      setShopDialogOpen(false);
+      
+      // Reload shop data to get latest information
+      await loadShopData();
+    } catch (error) {
+      console.error('Error saving shop:', error);
+      setSnackbar({ open: true, message: 'Failed to save shop details', severity: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+  // Utility Functions
   const formatPrice = (price) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-LK', {
       style: 'currency',
       currency: 'LKR',
       minimumFractionDigits: 0,
@@ -316,6 +549,10 @@ const ShopDashboard = () => {
       case 'cancelled': return 'error';
       default: return 'primary';
     }
+  };
+
+  const handleSnackbarClose = () => {
+    setSnackbar({ ...snackbar, open: false });
   };
   const handleMenuClick = (event, itemId) => {
     setMenuAnchor(event.currentTarget);
@@ -609,8 +846,7 @@ const ShopDashboard = () => {
                               data-product-type="computer"
                             >
                               <MoreIcon />
-                            </IconButton>
-                          </TableCell>
+                            </IconButton>                          </TableCell>
                         </TableRow>
                       ))
                     )}
@@ -675,8 +911,7 @@ const ShopDashboard = () => {
                               data-product-type="gadget"
                             >
                               <MoreIcon />
-                            </IconButton>
-                          </TableCell>
+                            </IconButton>                          </TableCell>
                         </TableRow>
                       ))
                     )}
@@ -747,17 +982,84 @@ const ShopDashboard = () => {
               Advanced analytics features coming soon...
             </Typography>
           </Paper>
-        )}
-
-        {/* Shop Settings Tab */}
+        )}        {/* Shop Settings Tab */}
         {activeTab === 3 && (
           <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" sx={{ mb: 3 }}>
-              Shop Settings
-            </Typography>
-            <Typography variant="body1" color="text.secondary">
-              Shop configuration features coming soon...
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography variant="h6">
+                Shop Settings
+              </Typography>
+              <Box>
+                <Button
+                  variant="outlined"
+                  startIcon={<CategoryIcon />}
+                  onClick={() => setCategoryDialogOpen(true)}
+                  sx={{ mr: 2 }}
+                >
+                  Manage Categories
+                </Button>
+                <Button
+                  variant="contained"
+                  startIcon={<SettingsIcon />}
+                  onClick={() => setShopDialogOpen(true)}
+                >
+                  Edit Shop Details
+                </Button>
+              </Box>
+            </Box>
+
+            {/* Shop Information */}
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                      <BusinessIcon sx={{ fontSize: 24, mr: 1, color: 'primary.main' }} />
+                      <Typography variant="h6">Shop Information</Typography>
+                    </Box>
+                    <Typography variant="body1" gutterBottom>
+                      <strong>Name:</strong> {shop?.name || 'Not set'}
+                    </Typography>
+                    <Typography variant="body1" gutterBottom>
+                      <strong>Description:</strong> {shop?.description || 'No description'}
+                    </Typography>
+                    <Typography variant="body1" gutterBottom>
+                      <strong>Address:</strong> {shop?.address || 'Not set'}
+                    </Typography>
+                    <Typography variant="body1" gutterBottom>
+                      <strong>Phone:</strong> {shop?.phoneNumber || 'Not set'}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                      <CategoryIcon sx={{ fontSize: 24, mr: 1, color: 'primary.main' }} />
+                      <Typography variant="h6">Categories</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      {categories.length > 0 ? (
+                        categories.map((category) => (
+                          <Chip
+                            key={category.id}
+                            label={category.name}
+                            variant="outlined"
+                            size="small"
+                          />
+                        ))
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          No categories created yet
+                        </Typography>
+                      )}
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
           </Paper>
         )}
       </Box>      {/* Context Menu for Products */}
@@ -945,9 +1247,7 @@ const ShopDashboard = () => {
             {selectedComputer ? 'Update' : 'Add'} Product
           </Button>
         </DialogActions>
-      </Dialog>
-
-      {/* Add/Edit Gadget Dialog */}
+      </Dialog>      {/* Add/Edit Gadget Dialog */}
       <Dialog
         open={gadgetDialogOpen}
         onClose={() => setGadgetDialogOpen(false)}
@@ -994,15 +1294,23 @@ const ShopDashboard = () => {
               />
             </Grid>
             <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Category"
-                value={gadgetFormData.category}
-                onChange={(e) => setGadgetFormData(prev => ({
-                  ...prev,
-                  category: e.target.value
-                }))}
-              />
+              <FormControl fullWidth>
+                <InputLabel>Category</InputLabel>
+                <Select
+                  value={gadgetFormData.category}
+                  label="Category"
+                  onChange={(e) => setGadgetFormData(prev => ({
+                    ...prev,
+                    category: e.target.value
+                  }))}
+                >
+                  {categories.map((category) => (
+                    <MenuItem key={category.id} value={category.name}>
+                      {category.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
@@ -1048,6 +1356,7 @@ const ShopDashboard = () => {
                   ...prev,
                   imageUrl: e.target.value
                 }))}
+                helperText="Enter a valid image URL or upload an image"
               />
             </Grid>
           </Grid>
@@ -1062,36 +1371,183 @@ const ShopDashboard = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Context Menu */}
-      <Menu
-        anchorEl={menuAnchor}
-        open={Boolean(menuAnchor)}
-        onClose={handleMenuClose}
+      {/* Shop Details Dialog */}
+      <Dialog
+        open={shopDialogOpen}
+        onClose={() => setShopDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
       >
-        <MenuItemComponent
-          onClick={() => {
-            const computer = computers.find(c => c.id === selectedItemId);
-            if (computer) handleEditComputer(computer);
-            handleMenuClose();
-          }}
+        <DialogTitle>
+          {shop ? 'Edit Shop Details' : 'Create Shop'}
+        </DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Shop Name"
+                value={shopFormData.name}
+                onChange={(e) => setShopFormData(prev => ({
+                  ...prev,
+                  name: e.target.value
+                }))}
+                required
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Description"
+                multiline
+                rows={3}
+                value={shopFormData.description}
+                onChange={(e) => setShopFormData(prev => ({
+                  ...prev,
+                  description: e.target.value
+                }))}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Address"
+                value={shopFormData.address}
+                onChange={(e) => setShopFormData(prev => ({
+                  ...prev,
+                  address: e.target.value
+                }))}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Phone Number"
+                value={shopFormData.phoneNumber}
+                onChange={(e) => setShopFormData(prev => ({
+                  ...prev,
+                  phoneNumber: e.target.value
+                }))}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Shop Image URL"
+                value={shopFormData.imageUrl}
+                onChange={(e) => setShopFormData(prev => ({
+                  ...prev,
+                  imageUrl: e.target.value
+                }))}
+                helperText="Enter a valid image URL for your shop"
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShopDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleSaveShop} variant="contained">
+            {shop ? 'Update' : 'Create'} Shop
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Category Management Dialog */}
+      <Dialog
+        open={categoryDialogOpen}
+        onClose={() => setCategoryDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Manage Categories</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mb: 3 }}>
+            <TextField
+              fullWidth
+              label="New Category Name"
+              value={categoryFormData.name}
+              onChange={(e) => setCategoryFormData(prev => ({
+                ...prev,
+                name: e.target.value
+              }))}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleCreateCategory();
+                }
+              }}
+              sx={{ mb: 2 }}
+            />
+            <Button
+              fullWidth
+              variant="contained"
+              onClick={handleCreateCategory}
+              disabled={!categoryFormData.name.trim()}
+            >
+              Add Category
+            </Button>
+          </Box>
+          
+          <Divider sx={{ mb: 2 }} />
+          
+          <Typography variant="h6" gutterBottom>
+            Existing Categories
+          </Typography>
+          
+          {categories.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+              No categories created yet
+            </Typography>
+          ) : (
+            <Box>
+              {categories.map((category) => (
+                <Box
+                  key={category.id}
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    py: 1,
+                    borderBottom: '1px solid',
+                    borderColor: 'divider'
+                  }}
+                >
+                  <Typography variant="body1">{category.name}</Typography>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleDeleteCategory(category.id)}
+                    color="error"
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              ))}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCategoryDialogOpen(false)}>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <Alert 
+          onClose={handleSnackbarClose} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
         >
-          <ListItemIcon>
-            <EditIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Edit</ListItemText>
-        </MenuItemComponent>
-        <MenuItemComponent
-          onClick={() => {
-            if (selectedItemId) handleDeleteComputer(selectedItemId);
-            handleMenuClose();
-          }}
-        >
-          <ListItemIcon>
-            <DeleteIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Delete</ListItemText>
-        </MenuItemComponent>
-      </Menu>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };
