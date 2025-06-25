@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { isShopOwner } from '../../utils/roleUtils';
+import { validateImagesForBackend, getImageValidationMessage } from '../../utils/imageUtils';
 import {
   Container,
   Grid,
@@ -36,7 +37,9 @@ import {
   Select,
   MenuItem,
   Divider,
-  Snackbar
+  Snackbar,
+  Checkbox,
+  FormControlLabel
 } from '@mui/material';
 import {
   Store as StoreIcon,
@@ -49,12 +52,15 @@ import {
   Visibility as ViewIcon,
   MoreVert as MoreIcon,
   TrendingUp as TrendingUpIcon,
-  AttachMoney as MoneyIcon,  Business as BusinessIcon,
+  AttachMoney as MoneyIcon,
+  Business as BusinessIcon,
   Category as CategoryIcon,
   Settings as SettingsIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiService } from '../../services/api';
+import ImageUpload from '../Common/ImageUpload';
+import ApiDebugger from '../Common/ApiDebugger';
 
 const ShopDashboard = () => {
   const { user } = useAuth();
@@ -105,8 +111,7 @@ const ShopDashboard = () => {
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [selectedComputer, setSelectedComputer] = useState(null);
   const [selectedGadget, setSelectedGadget] = useState(null);
-  
-  // Enhanced form data for computers based on backend structure
+    // Enhanced form data for computers based on backend structure
   const [computerFormData, setComputerFormData] = useState({
     name: '',
     description: '',
@@ -127,8 +132,9 @@ const ShopDashboard = () => {
     isDesigner: false,
     isDeveloper: false,
     isSeasonal: false,
-    category: null,
-    shopId: null
+    computerCategoryId: null, // Properly named for backend
+    shopId: null,
+    available: true // Add available field
   });
 
   // Enhanced form data for tech gadgets based on backend structure
@@ -151,18 +157,20 @@ const ShopDashboard = () => {
   });
 
   const [productTab, setProductTab] = useState(0); // 0: Computers, 1: Tech Gadgets
-  
-  // Menu state
+    // Menu state
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [selectedItemId, setSelectedItemId] = useState(null);
-  const [menuType, setMenuType] = useState('');  const loadShopData = useCallback(async () => {
+  const [menuType, setMenuType] = useState('');
+  const loadShopData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       
       // First check if the shop exists
       try {
+        console.log('Attempting to load shop data for user:', user);
         const shopData = await apiService.getShopByOwner();
+        console.log('Shop data loaded successfully:', shopData);
         setShop(shopData);
         
         // Load all shop-related data in parallel for better performance
@@ -209,12 +217,24 @@ const ShopDashboard = () => {
         } else {
           console.warn('Failed to load categories:', categoriesResponse.reason);
           setCategories([]);
-        }
-
-      } catch (shopError) {
-        // If error is 404, shop doesn't exist
-        if (shopError.message && shopError.message.includes('404')) {
+        }      } catch (shopError) {
+        console.log('Shop loading error details:', shopError);
+        
+        // Handle different types of errors
+        if (shopError.message && (shopError.message.includes('404') || shopError.message.includes('No shop found'))) {
           console.log('Shop not found for this user, showing shop creation interface');
+          setError('You do not have a shop yet. Please create one to access your shop dashboard.');
+          setHasNoShop(true);
+          setLoading(false);
+          return;
+        } else if (shopError.message && shopError.message.includes('400')) {
+          console.log('Bad request - possible authentication or data issue');
+          setError('There was an issue loading your shop data. This might be due to authentication or server configuration. Please try logging out and back in.');
+          setHasNoShop(true);
+          setLoading(false);
+          return;
+        } else if (shopError.message && shopError.message.includes('500') && shopError.message.includes('Shop not found')) {
+          console.log('Backend indicates no shop exists for this user (500 error is expected behavior)');
           setError('You do not have a shop yet. Please create one to access your shop dashboard.');
           setHasNoShop(true);
           setLoading(false);
@@ -226,11 +246,11 @@ const ShopDashboard = () => {
       }
     } catch (error) {
       console.error('Error loading shop data:', error);
-      setError('Failed to load shop data. Please try again.');
+      setError(`Failed to load shop data: ${error.message}. Please check your connection and try again.`);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (isShopOwner(user)) {
@@ -253,10 +273,12 @@ const ShopDashboard = () => {
       monthlyRevenue,
       averageOrderValue: ordersData.length > 0 ? totalRevenue / ordersData.length : 0
     });
-  };
-  // Enhanced Computer Management Functions
+  };  // Enhanced Computer Management Functions
   const handleAddComputer = () => {
-    setSelectedComputer(null);
+    if (!shop || !shop.id) {
+      setSnackbar({ open: true, message: 'Shop information is missing. Please refresh the page and try again.', severity: 'error' });
+      return;
+    }    setSelectedComputer(null);
     setComputerFormData({
       name: '',
       description: '',
@@ -277,16 +299,16 @@ const ShopDashboard = () => {
       isDesigner: false,
       isDeveloper: false,
       isSeasonal: false,
-      category: categories.length > 0 ? categories[0] : null,
-      shopId: shop?.id
+      computerCategoryId: categories.length > 0 ? categories[0].id : null, // Use ID
+      shopId: shop?.id,
+      available: true
     });
     setComputerDialogOpen(true);
   };
 
   const handleEditComputer = (computer) => {
     setSelectedComputer(computer);
-    setComputerFormData({
-      name: computer.name || '',
+    setComputerFormData({      name: computer.name || '',
       description: computer.description || '',
       price: computer.price || '',
       brand: computer.brand || '',
@@ -305,41 +327,71 @@ const ShopDashboard = () => {
       isDesigner: computer.isDesigner || false,
       isDeveloper: computer.isDeveloper || false,
       isSeasonal: computer.isSeasonal || false,
-      category: computer.computerCategory || null,
-      shopId: shop?.id
+      computerCategoryId: computer.computerCategoryId || computer.computerCategory?.id || null,
+      shopId: shop?.id,
+      available: computer.available !== undefined ? computer.available : true
     });
     setComputerDialogOpen(true);
   };
-
   const handleSaveComputer = async () => {
     try {
       setLoading(true);
-      
-      // Prepare computer data according to backend CreateComputerRequest structure
+
+      // Check if shop exists
+      if (!shop || !shop.id) {
+        setSnackbar({ open: true, message: 'Shop information is missing. Please refresh the page and try again.', severity: 'error' });
+        return;
+      }      // Validate required fields
+      if (!computerFormData.name || !computerFormData.brand || !computerFormData.price) {
+        setSnackbar({ open: true, message: 'Please fill in all required fields (Name, Brand, Price).', severity: 'error' });
+        return;
+      }
+
+      // Additional validation
+      if (parseFloat(computerFormData.price) <= 0) {
+        setSnackbar({ open: true, message: 'Price must be greater than 0.', severity: 'error' });
+        return;
+      }
+
+      if (!computerFormData.computerCategoryId) {
+        setSnackbar({ open: true, message: 'Please select a category for the computer.', severity: 'warning' });
+      }
+        // Validate and filter images for database safety
+      const imageValidation = validateImagesForBackend(computerFormData.images || []);
+      if (imageValidation.hasIssues) {
+        const message = getImageValidationMessage(imageValidation);
+        setSnackbar({ open: true, message, severity: 'warning' });
+      }
+        // Prepare computer data according to backend CreateComputerRequest structure
       const computerData = {
-        name: computerFormData.name,
-        description: computerFormData.description,
-        price: parseInt(computerFormData.price),
-        brand: computerFormData.brand,
-        cpu: computerFormData.cpu,
-        ram: computerFormData.ram,
-        storage: computerFormData.storage,
-        gpu: computerFormData.gpu,
-        operatingSystem: computerFormData.operatingSystem,
+        name: computerFormData.name.trim(),
+        description: computerFormData.description.trim(),
+        price: parseFloat(computerFormData.price) || 0,
+        brand: computerFormData.brand.trim(),
+        cpu: computerFormData.cpu.trim(),
+        ram: computerFormData.ram.trim(),
+        storage: computerFormData.storage.trim(),
+        gpu: computerFormData.gpu.trim(),
+        operatingSystem: computerFormData.operatingSystem.trim(),
         rating: parseFloat(computerFormData.rating) || 0,
         stockQuantity: parseInt(computerFormData.stockQuantity) || 0,
         computerType: computerFormData.computerType,
-        images: computerFormData.images,
+        images: imageValidation.validImages, // Use validated images
         isHomeUser: computerFormData.isHomeUser,
         isBusinessUser: computerFormData.isBusinessUser,
         isGamer: computerFormData.isGamer,
         isDesigner: computerFormData.isDesigner,
         isDeveloper: computerFormData.isDeveloper,
         isSeasonal: computerFormData.isSeasonal,
-        category: computerFormData.category,
-        shopId: shop.id,
+        computerCategoryId: computerFormData.computerCategoryId, // Use the ID, not the object
+        shopId: shop.id,        available: computerFormData.available,
         includedComponents: [] // Empty for now
       };
+
+      // Debug logging
+      console.log('Creating computer with data:', computerData);
+      console.log('Shop ID:', shop.id);
+      console.log('Category ID:', computerFormData.computerCategoryId);
 
       if (selectedComputer) {
         await apiService.updateComputer(selectedComputer.id, computerData);
@@ -374,9 +426,13 @@ const ShopDashboard = () => {
       }
     }
   };
-
   // Enhanced Tech Gadget Management Functions
   const handleAddGadget = () => {
+    if (!shop || !shop.id) {
+      setSnackbar({ open: true, message: 'Shop information is missing. Please refresh the page and try again.', severity: 'error' });
+      return;
+    }
+
     setSelectedGadget(null);
     setGadgetFormData({
       name: '',
@@ -409,10 +465,27 @@ const ShopDashboard = () => {
     });
     setGadgetDialogOpen(true);
   };
-
   const handleSaveGadget = async () => {
     try {
       setLoading(true);
+
+      // Check if shop exists
+      if (!shop || !shop.id) {
+        setSnackbar({ open: true, message: 'Shop information is missing. Please refresh the page and try again.', severity: 'error' });
+        return;
+      }
+
+      // Validate required fields
+      if (!gadgetFormData.name || !gadgetFormData.brand || !gadgetFormData.price) {
+        setSnackbar({ open: true, message: 'Please fill in all required fields (Name, Brand, Price).', severity: 'error' });
+        return;
+      }
+        // Validate and filter images for database safety
+      const imageValidation = validateImagesForBackend(gadgetFormData.images || []);
+      if (imageValidation.hasIssues) {
+        const message = getImageValidationMessage(imageValidation);
+        setSnackbar({ open: true, message, severity: 'warning' });
+      }
       
       // Prepare gadget data according to backend CreateTechGadgetRequest structure
       const gadgetData = {
@@ -421,7 +494,7 @@ const ShopDashboard = () => {
         price: parseFloat(gadgetFormData.price),
         brand: gadgetFormData.brand,
         specs: gadgetFormData.specs,
-        images: gadgetFormData.images,
+        images: imageValidation.validImages, // Use validated images
         available: gadgetFormData.available,
         categoryId: gadgetFormData.categoryId,
         shopId: shop.id,
@@ -746,8 +819,7 @@ const ShopDashboard = () => {
       </Grid>
 
       {/* Tabs */}
-      <Paper sx={{ mb: 3 }}>
-        <Tabs
+      <Paper sx={{ mb: 3 }}>        <Tabs
           value={activeTab}
           onChange={(e, newValue) => setActiveTab(newValue)}
           indicatorColor="primary"
@@ -757,12 +829,18 @@ const ShopDashboard = () => {
           <Tab icon={<OrderIcon />} label="Orders" />
           <Tab icon={<AnalyticsIcon />} label="Analytics" />
           <Tab icon={<StoreIcon />} label="Shop Settings" />
+          <Tab icon={<SettingsIcon />} label="API Debug" />
         </Tabs>
       </Paper>      {/* Tab Content */}
       <Box>
-        {/* Products Tab */}
-        {activeTab === 0 && (
+        {/* Products Tab */}        {activeTab === 0 && (
           <Paper sx={{ p: 3 }}>
+            {!shop || !shop.id ? (
+              <Alert severity="warning" sx={{ mb: 3 }}>
+                Shop information is not available. Please refresh the page or create your shop first.
+              </Alert>
+            ) : null}
+            
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
               <Typography variant="h6">
                 Products ({computers.length + techGadgets.length})
@@ -781,6 +859,7 @@ const ShopDashboard = () => {
                 variant="contained"
                 startIcon={<AddIcon />}
                 onClick={productTab === 0 ? handleAddComputer : handleAddGadget}
+                disabled={!shop || !shop.id}
               >
                 Add {productTab === 0 ? 'Computer' : 'Tech Gadget'}
               </Button>
@@ -807,8 +886,7 @@ const ShopDashboard = () => {
                           </Typography>
                         </TableCell>
                       </TableRow>
-                    ) : (
-                      computers.map((computer) => (
+                    ) : (                      computers.map((computer) => (
                         <TableRow key={computer.id}>
                           <TableCell>
                             <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -846,7 +924,8 @@ const ShopDashboard = () => {
                               data-product-type="computer"
                             >
                               <MoreIcon />
-                            </IconButton>                          </TableCell>
+                            </IconButton>
+                          </TableCell>
                         </TableRow>
                       ))
                     )}
@@ -904,14 +983,13 @@ const ShopDashboard = () => {
                               variant="outlined" 
                             />
                           </TableCell>
-                          <TableCell>
-                            <IconButton
+                          <TableCell>                            <IconButton
                               onClick={(e) => handleMenuClick(e, gadget.id)}
                               aria-label="gadget actions"
                               data-product-type="gadget"
                             >
-                              <MoreIcon />
-                            </IconButton>                          </TableCell>
+                              <MoreIcon />                            </IconButton>
+                          </TableCell>
                         </TableRow>
                       ))
                     )}
@@ -970,9 +1048,7 @@ const ShopDashboard = () => {
               </Table>
             </TableContainer>
           </Paper>
-        )}
-
-        {/* Analytics Tab */}
+        )}        {/* Analytics Tab */}
         {activeTab === 2 && (
           <Paper sx={{ p: 3 }}>
             <Typography variant="h6" sx={{ mb: 3 }}>
@@ -982,7 +1058,9 @@ const ShopDashboard = () => {
               Advanced analytics features coming soon...
             </Typography>
           </Paper>
-        )}        {/* Shop Settings Tab */}
+        )}
+
+        {/* Shop Settings Tab */}
         {activeTab === 3 && (
           <Paper sx={{ p: 3 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -1058,11 +1136,17 @@ const ShopDashboard = () => {
                     </Box>
                   </CardContent>
                 </Card>
-              </Grid>
-            </Grid>
+              </Grid>            </Grid>
           </Paper>
         )}
-      </Box>      {/* Context Menu for Products */}
+
+        {/* API Debug Tab */}
+        {activeTab === 4 && (
+          <Paper sx={{ p: 3 }}>
+            <ApiDebugger />
+          </Paper>
+        )}
+      </Box>{/* Context Menu for Products */}
       <Menu
         anchorEl={menuAnchor}
         open={Boolean(menuAnchor)}
@@ -1131,11 +1215,11 @@ const ShopDashboard = () => {
       >
         <DialogTitle>
           {selectedComputer ? 'Edit Product' : 'Add New Product'}
-        </DialogTitle>
-        <DialogContent>
+        </DialogTitle>        <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12} sm={6}>
               <TextField
+                required
                 fullWidth
                 label="Product Name"
                 value={computerFormData.name}
@@ -1147,6 +1231,7 @@ const ShopDashboard = () => {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
+                required
                 fullWidth
                 label="Brand"
                 value={computerFormData.brand}
@@ -1158,8 +1243,9 @@ const ShopDashboard = () => {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
+                required
                 fullWidth
-                label="Price"
+                label="Price (LKR)"
                 type="number"
                 value={computerFormData.price}
                 onChange={(e) => setComputerFormData(prev => ({
@@ -1171,9 +1257,56 @@ const ShopDashboard = () => {
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="RAM (GB)"
+                label="Stock Quantity"
                 type="number"
+                value={computerFormData.stockQuantity}
+                onChange={(e) => setComputerFormData(prev => ({
+                  ...prev,
+                  stockQuantity: parseInt(e.target.value) || 0
+                }))}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Computer Type</InputLabel>
+                <Select
+                  value={computerFormData.computerType}
+                  label="Computer Type"
+                  onChange={(e) => setComputerFormData(prev => ({
+                    ...prev,
+                    computerType: e.target.value
+                  }))}
+                >
+                  <MenuItem value="PC">Desktop PC</MenuItem>
+                  <MenuItem value="LAPTOP">Laptop</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Category</InputLabel>
+                <Select
+                  value={computerFormData.computerCategoryId || ''}
+                  label="Category"
+                  onChange={(e) => setComputerFormData(prev => ({
+                    ...prev,
+                    computerCategoryId: e.target.value
+                  }))}
+                >
+                  {categories.map((category) => (
+                    <MenuItem key={category.id} value={category.id}>
+                      {category.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="RAM"
                 value={computerFormData.ram}
+                placeholder="e.g., 16GB DDR4"
                 onChange={(e) => setComputerFormData(prev => ({
                   ...prev,
                   ram: e.target.value
@@ -1183,11 +1316,12 @@ const ShopDashboard = () => {
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="Processor"
-                value={computerFormData.processor}
+                label="CPU/Processor"
+                value={computerFormData.cpu}
+                placeholder="e.g., Intel Core i7-12700K"
                 onChange={(e) => setComputerFormData(prev => ({
                   ...prev,
-                  processor: e.target.value
+                  cpu: e.target.value
                 }))}
               />
             </Grid>
@@ -1196,23 +1330,144 @@ const ShopDashboard = () => {
                 fullWidth
                 label="Storage"
                 value={computerFormData.storage}
+                placeholder="e.g., 1TB SSD"
                 onChange={(e) => setComputerFormData(prev => ({
                   ...prev,
                   storage: e.target.value
                 }))}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="Graphics"
-                value={computerFormData.graphics}
+                label="GPU/Graphics"
+                value={computerFormData.gpu}
+                placeholder="e.g., NVIDIA RTX 4070"
                 onChange={(e) => setComputerFormData(prev => ({
                   ...prev,
-                  graphics: e.target.value
+                  gpu: e.target.value
                 }))}
               />
             </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Operating System"
+                value={computerFormData.operatingSystem}
+                placeholder="e.g., Windows 11 Pro"
+                onChange={(e) => setComputerFormData(prev => ({
+                  ...prev,
+                  operatingSystem: e.target.value
+                }))}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Rating (0-5)"
+                type="number"
+                inputProps={{ min: 0, max: 5, step: 0.1 }}
+                value={computerFormData.rating}
+                onChange={(e) => setComputerFormData(prev => ({
+                  ...prev,
+                  rating: parseFloat(e.target.value) || 0
+                }))}
+              />
+            </Grid>
+            
+            {/* Target User Types */}
+            <Grid item xs={12}>
+              <Typography variant="h6" sx={{ mb: 1 }}>
+                Target Users (Check all that apply):
+              </Typography>
+              <Grid container spacing={1}>
+                <Grid item xs={6} sm={4}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={computerFormData.isHomeUser}
+                        onChange={(e) => setComputerFormData(prev => ({
+                          ...prev,
+                          isHomeUser: e.target.checked
+                        }))}
+                      />
+                    }
+                    label="Home Users"
+                  />
+                </Grid>
+                <Grid item xs={6} sm={4}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={computerFormData.isBusinessUser}
+                        onChange={(e) => setComputerFormData(prev => ({
+                          ...prev,
+                          isBusinessUser: e.target.checked
+                        }))}
+                      />
+                    }
+                    label="Business Users"
+                  />
+                </Grid>
+                <Grid item xs={6} sm={4}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={computerFormData.isGamer}
+                        onChange={(e) => setComputerFormData(prev => ({
+                          ...prev,
+                          isGamer: e.target.checked
+                        }))}
+                      />
+                    }
+                    label="Gamers"
+                  />
+                </Grid>
+                <Grid item xs={6} sm={4}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={computerFormData.isDesigner}
+                        onChange={(e) => setComputerFormData(prev => ({
+                          ...prev,
+                          isDesigner: e.target.checked
+                        }))}
+                      />
+                    }
+                    label="Designers"
+                  />
+                </Grid>
+                <Grid item xs={6} sm={4}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={computerFormData.isDeveloper}
+                        onChange={(e) => setComputerFormData(prev => ({
+                          ...prev,
+                          isDeveloper: e.target.checked
+                        }))}
+                      />
+                    }
+                    label="Developers"
+                  />
+                </Grid>
+                <Grid item xs={6} sm={4}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={computerFormData.isSeasonal}
+                        onChange={(e) => setComputerFormData(prev => ({
+                          ...prev,
+                          isSeasonal: e.target.checked
+                        }))}
+                      />
+                    }
+                    label="Seasonal/Special"
+                  />
+                </Grid>
+              </Grid>
+            </Grid>
+            
             <Grid item xs={12}>
               <TextField
                 fullWidth
@@ -1220,21 +1475,22 @@ const ShopDashboard = () => {
                 multiline
                 rows={3}
                 value={computerFormData.description}
+                placeholder="Describe this computer's features, specifications, and benefits..."
                 onChange={(e) => setComputerFormData(prev => ({
                   ...prev,
                   description: e.target.value
                 }))}
               />
             </Grid>
+            
             <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Image URL"
-                value={computerFormData.imageUrl}
-                onChange={(e) => setComputerFormData(prev => ({
+              <ImageUpload 
+                images={computerFormData.images || []}
+                onImagesChange={(newImages) => setComputerFormData(prev => ({
                   ...prev,
-                  imageUrl: e.target.value
+                  images: newImages
                 }))}
+                maxImages={5}
               />
             </Grid>
           </Grid>
@@ -1346,17 +1602,14 @@ const ShopDashboard = () => {
                   description: e.target.value
                 }))}
               />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Image URL"
-                value={gadgetFormData.imageUrl}
-                onChange={(e) => setGadgetFormData(prev => ({
+            </Grid>            <Grid item xs={12}>
+              <ImageUpload 
+                images={gadgetFormData.images || []}
+                onImagesChange={(newImages) => setGadgetFormData(prev => ({
                   ...prev,
-                  imageUrl: e.target.value
+                  images: newImages
                 }))}
-                helperText="Enter a valid image URL or upload an image"
+                maxImages={5}
               />
             </Grid>
           </Grid>
