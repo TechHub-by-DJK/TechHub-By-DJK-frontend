@@ -123,9 +123,8 @@ const Login = () => {
                 return;
             }
         }
-        
-        // If user is a shop owner and on the first step, show shop details form
-        if (formData.role === 'ROLE_SHOP_OWNER' && registerStep === 0) {
+          // If user is a shop owner and on the first step, show shop details form
+        if (formData.role === 'SHOP_OWNER' && registerStep === 0) {
             setRegisterStep(1);
         } else {
             // Otherwise, submit the form
@@ -167,8 +166,7 @@ const Login = () => {
                     fullName: formData.fullName,
                     role: formData.role
                 };
-                
-                if (formData.role === 'ROLE_SHOP_OWNER') {
+                  if (formData.role === 'SHOP_OWNER') {
                     registrationData.shop = shopDetails;
                 }
                 
@@ -439,8 +437,7 @@ const Login = () => {
                                                         <CustomerIcon sx={{ mr: 1 }} />
                                                         Customer
                                                     </Box>
-                                                </MenuItem>
-                                                <MenuItem value="ROLE_SHOP_OWNER">
+                                                </MenuItem>                                                <MenuItem value="SHOP_OWNER">
                                                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                                                         <StoreIcon sx={{ mr: 1 }} />
                                                         Shop Owner
