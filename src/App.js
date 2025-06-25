@@ -26,6 +26,8 @@ import RoleRedirector from './component/Auth/RoleRedirector';
 import Footer from './component/Layout/Footer';
 import NotFound from './component/Common/NotFound';
 import UserRoleDebugger from './component/Common/UserRoleDebugger';
+import RoleTestComponent from './component/Common/RoleTestComponent';
+import ShopDashboardAccess from './component/Common/ShopDashboardAccess';
 import './App.css';
 
 function App() {
@@ -47,9 +49,9 @@ function App() {
                 <Route path="/shop/:shopId" element={<ShopDetails />} />                
                 <Route path="/computer/:computerId" element={<ComputerDetail />} />
                 <Route path="/search" element={<SearchResults />} />
-                <Route path="/gadgets" element={<TechGadgets />} />                
-                <Route path="/gadget/:gadgetId" element={<TechGadgetDetail />} />
-                <Route path="/debug-role" element={<ProtectedRoute><UserRoleDebugger /></ProtectedRoute>} />
+                <Route path="/gadgets" element={<TechGadgets />} />                  <Route path="/gadget/:gadgetId" element={<TechGadgetDetail />} />                <Route path="/debug-role" element={<ProtectedRoute><UserRoleDebugger /></ProtectedRoute>} />
+                <Route path="/test-role" element={<ProtectedRoute><RoleTestComponent /></ProtectedRoute>} />
+                <Route path="/shop-access" element={<ProtectedRoute><ShopDashboardAccess /></ProtectedRoute>} />
                 
                 {/* Protected Routes */}
                 <Route path="/cart" element={
