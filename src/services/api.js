@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5454';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080';
 
 class ApiService {
     constructor() {
@@ -22,7 +22,9 @@ class ApiService {
             headers['Authorization'] = `Bearer ${this.token}`;
         }
         return headers;
-    }    async request(endpoint, options = {}) {
+    }
+
+    async request(endpoint, options = {}) {
         const url = `${API_BASE_URL}${endpoint}`;
         const config = {
             headers: this.getHeaders(),
@@ -30,27 +32,14 @@ class ApiService {
         };
 
         try {
-            console.log(`🔗 API Request: ${options.method || 'GET'} ${url}`);
             const response = await fetch(url, config);
             
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`❌ API Error: ${response.status} - ${errorText}`);
-                throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
             
-            const data = await response.json();
-            console.log(`✅ API Success: ${options.method || 'GET'} ${url}`);
-            return data;
+            return await response.json();
         } catch (error) {
-            if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-                console.error(`🚫 Connection Error: Cannot connect to backend at ${API_BASE_URL}`);
-                console.error('🔧 Troubleshooting steps:');
-                console.error('   1. Check if backend is running on port 5454');
-                console.error('   2. Verify CORS configuration in backend');
-                console.error('   3. Check if REACT_APP_API_BASE_URL is set correctly');
-                throw new Error(`Cannot connect to backend server. Please ensure the backend is running on ${API_BASE_URL}`);
-            }
             console.error('API request failed:', error);
             throw error;
         }
@@ -71,23 +60,8 @@ class ApiService {
         });
     }
 
-    // User Profile APIs
     async getUserProfile() {
         return this.request('/api/users/profile');
-    }
-
-    async updateUserProfile(profileData) {
-        return this.request('/api/users/profile', {
-            method: 'PUT',
-            body: JSON.stringify(profileData),
-        });
-    }
-
-    async changePassword(passwordData) {
-        return this.request('/api/users/change-password', {
-            method: 'PUT',
-            body: JSON.stringify(passwordData),
-        });
     }
 
     // Shop APIs
@@ -107,93 +81,32 @@ class ApiService {
         return this.request(`/api/shops/${shopId}/add-favourites`, {
             method: 'PUT',
         });
-    }   
-    // Computer APIs
-    async getShopComputers(shopId, filters = {}) {
-        try {
-            // Try the new API endpoint first
-            try {
-                return await this.request(`/api/shops/${shopId}/computers`);
-            } catch (error) {
-                // If new endpoint fails with 404, fall back to old endpoint
-                console.log(`New API endpoint failed, trying fallback: ${error.message}`);
-                
-                // Handle both filtering and plain requests
-                const queryParams = new URLSearchParams();
-                
-                // Add filter parameters for legacy API
-                if (typeof filters === 'object') {
-                    if (filters.gamer) queryParams.append('gamer', filters.gamer);
-                    if (filters.designer) queryParams.append('designer', filters.designer);
-                    if (filters.developer) queryParams.append('developer', filters.developer);
-                    if (filters.homeUser) queryParams.append('homeUser', filters.homeUser);
-                    if (filters.businessUser) queryParams.append('bussinessPerson', filters.businessUser);
-                    if (filters.seasonal) queryParams.append('seasonal', filters.seasonal);
-                    
-                    if (filters.computer_category) {
-                        queryParams.append('computer_category', filters.computer_category);
-                    }
-                }
-                
-                // Try legacy endpoint
-                try {
-                    return await this.request(`/api/computer/shop/${shopId}?${queryParams.toString()}`);
-                } catch (fallbackError) {
-                    // If both APIs fail, try a general computers endpoint as last resort
-                    console.log(`Legacy API endpoint also failed: ${fallbackError.message}`);
-                    return await this.request(`/api/computers`);
-                }
-            }
-        } catch (finalError) {
-            console.error('All computer API endpoints failed:', finalError);
-            return []; // Return empty array as fallback
-        }
     }
 
-    async searchComputers(query) {
+    // Computer APIs
+    async getShopComputers(shopId, filters = {}) {
+        const queryParams = new URLSearchParams();
+        
+        // Add filter parameters
+        queryParams.append('gamer', filters.gamer || false);
+        queryParams.append('designer', filters.designer || false);
+        queryParams.append('developer', filters.developer || false);
+        queryParams.append('homeUser', filters.homeUser || false);
+        queryParams.append('bussinessPerson', filters.businessUser || false);
+        queryParams.append('seasonal', filters.seasonal || false);
+        
+        if (filters.computer_category) {
+            queryParams.append('computer_category', filters.computer_category);
+        }
+
+        return this.request(`/api/computer/shop/${shopId}?${queryParams.toString()}`);
+    }    async searchComputers(query) {
         return this.request(`/api/computers/search?q=${encodeURIComponent(query)}`);
     }
 
-    async createComputer(computerData) {
-        return this.request('/api/computers', {
-            method: 'POST',
-            body: JSON.stringify(computerData),
-        });
-    }
-
-    async updateComputer(id, computerData) {
-        return this.request(`/api/computers/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(computerData),
-        });
-    }
-
-    async deleteComputer(id) {
-        return this.request(`/api/computers/${id}`, {
-            method: 'DELETE',
-        });
-    }
-
-    async updateComputerStatus(computerId) {
-        return this.request(`/api/admin/computer/${computerId}`, {
-            method: 'PUT',
-        });
-    }
-
     // TechGadget APIs
-    async getAllTechGadgets(params = {}) {
-        if (Object.keys(params).length === 0) {
-            // Legacy endpoint
-            return this.request('/api/techgadget');
-        }
-        
-        const queryParams = new URLSearchParams();
-        Object.keys(params).forEach(key => {
-            if (params[key] !== undefined && params[key] !== '') {
-                queryParams.append(key, params[key]);
-            }
-        });
-        return this.request(`/api/tech-gadgets?${queryParams.toString()}`);
+    async getAllTechGadgets() {
+        return this.request('/api/techgadget');
     }
 
     async getTechGadgetsByShop(shopId) {
@@ -202,30 +115,6 @@ class ApiService {
 
     async getTechGadgetsByCompatibility(type) {
         return this.request(`/api/techgadget/compatibility/${type}`);
-    }
-
-    async getTechGadgetById(id) {
-        return this.request(`/api/tech-gadgets/${id}`);
-    }
-
-    async createTechGadget(gadgetData) {
-        return this.request('/api/tech-gadgets', {
-            method: 'POST',
-            body: JSON.stringify(gadgetData),
-        });
-    }
-
-    async updateTechGadget(id, gadgetData) {
-        return this.request(`/api/tech-gadgets/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(gadgetData),
-        });
-    }
-
-    async deleteTechGadget(id) {
-        return this.request(`/api/tech-gadgets/${id}`, {
-            method: 'DELETE',
-        });
     }
 
     // Cart APIs
@@ -271,46 +160,12 @@ class ApiService {
         return this.request('/api/order/user');
     }
 
-    async getAllOrders() {
-        return this.request('/api/admin/orders');
-    }
-
-    async updateOrderStatus(orderId, orderStatus) {
-        return this.request(`/api/admin/order/${orderId}/${orderStatus}`, {
-            method: 'PUT',
-        });
-    }
-
     // Category APIs
     async getShopCategories() {
         return this.request('/api/category/shop');
     }
 
-    async getAllCategories() {
-        return this.request('/api/categories');
-    }
-
-    async createCategory(categoryData) {
-        return this.request('/api/categories', {
-            method: 'POST',
-            body: JSON.stringify(categoryData),
-        });
-    }
-
-    async updateCategory(id, categoryData) {
-        return this.request(`/api/categories/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(categoryData),
-        });
-    }
-
-    async deleteCategory(id) {
-        return this.request(`/api/categories/${id}`, {
-            method: 'DELETE',
-        });
-    }
-
-    // Shop Management APIs (for shop owners)
+    // Admin APIs (for shop owners)
     async createShop(shopData) {
         return this.request('/api/admin/shop', {
             method: 'POST',
@@ -333,22 +188,25 @@ class ApiService {
 
     async getShopByUserId() {
         return this.request('/api/admin/shop/user');
-    }    async getShopByOwner() {
-        try {
-            return await this.request('/api/shops/my-shop');
-        } catch (error) {
-            // Properly handle 404 for when shop doesn't exist
-            if (error.message && error.message.includes("404")) {
-                console.log("Shop doesn't exist for this user");
-                throw new Error("User doesn't have a shop yet");
-            }
-            throw error;
-        }
     }
 
-    async getShopOrders(shopId, orderStatus = null) {
-        const url = `/api/admin/order/shop/${shopId}${orderStatus ? `?order_status=${orderStatus}` : ''}`;
-        return this.request(url);
+    async createComputer(computerData) {
+        return this.request('/api/admin/computer', {
+            method: 'POST',
+            body: JSON.stringify(computerData),
+        });
+    }
+
+    async deleteComputer(computerId) {
+        return this.request(`/api/admin/computer/${computerId}`, {
+            method: 'DELETE',
+        });
+    }
+
+    async updateComputerStatus(computerId) {
+        return this.request(`/api/admin/computer/${computerId}`, {
+            method: 'PUT',
+        });
     }
 
     // Component APIs
@@ -380,41 +238,150 @@ class ApiService {
         });
     }
 
+    // Order management (for shop owners)
+    async getShopOrders(shopId, orderStatus = null) {
+        const url = `/api/admin/order/shop/${shopId}${orderStatus ? `?order_status=${orderStatus}` : ''}`;
+        return this.request(url);
+    }
+
+    async updateOrderStatus(orderId, orderStatus) {
+        return this.request(`/api/admin/order/${orderId}/${orderStatus}`, {            method: 'PUT',
+        });
+    }
+
+    // Search APIs
+    async searchComputers(query) {
+        return this.request(`/api/computers/search?q=${encodeURIComponent(query)}`);
+    }
+
+    // User Profile APIs
+    async getUserProfile() {
+        return this.request('/api/users/profile');
+    }
+
+    async updateUserProfile(profileData) {
+        return this.request('/api/users/profile', {
+            method: 'PUT',
+            body: JSON.stringify(profileData),
+        });
+    }
+
+    async changePassword(passwordData) {
+        return this.request('/api/users/change-password', {
+            method: 'PUT',
+            body: JSON.stringify(passwordData),
+        });
+    }
+
+    // Tech Gadgets APIs
+    async getAllTechGadgets(params = {}) {
+        const queryParams = new URLSearchParams();
+        Object.keys(params).forEach(key => {
+            if (params[key] !== undefined && params[key] !== '') {
+                queryParams.append(key, params[key]);
+            }
+        });
+        return this.request(`/api/tech-gadgets?${queryParams.toString()}`);
+    }
+
+    async getTechGadgetById(id) {
+        return this.request(`/api/tech-gadgets/${id}`);
+    }
+
+    async createTechGadget(gadgetData) {
+        return this.request('/api/tech-gadgets', {
+            method: 'POST',
+            body: JSON.stringify(gadgetData),
+        });
+    }
+
+    async updateTechGadget(id, gadgetData) {
+        return this.request(`/api/tech-gadgets/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(gadgetData),
+        });
+    }
+
+    async deleteTechGadget(id) {
+        return this.request(`/api/tech-gadgets/${id}`, {
+            method: 'DELETE',
+        });
+    }
+
+    // Shop Owner APIs
+    async getShopByOwner() {
+        return this.request('/api/shops/my-shop');
+    }
+
+    async getShopComputers(shopId) {
+        return this.request(`/api/shops/${shopId}/computers`);
+    }
+
+    async getShopOrders(shopId) {
+        return this.request(`/api/shops/${shopId}/orders`);
+    }
+
+    async createComputer(computerData) {
+        return this.request('/api/computers', {
+            method: 'POST',
+            body: JSON.stringify(computerData),
+        });
+    }
+
+    async updateComputer(id, computerData) {
+        return this.request(`/api/computers/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(computerData),
+        });
+    }
+
+    async deleteComputer(id) {
+        return this.request(`/api/computers/${id}`, {
+            method: 'DELETE',
+        });
+    }
+
     // Admin APIs
     async getAllUsers() {
         return this.request('/api/admin/users');
+    }
+
+    async getAllOrders() {
+        return this.request('/api/admin/orders');
+    }
+
+    async getAllCategories() {
+        return this.request('/api/categories');
     }
 
     async blockUser(userId) {
         return this.request(`/api/admin/users/${userId}/block`, {
             method: 'PUT',
         });
-    }    async approveShop(shopId) {
+    }
+
+    async approveShop(shopId) {
         return this.request(`/api/admin/shops/${shopId}/approve`, {
             method: 'PUT',
         });
     }
 
-    // Shop Owner specific APIs
-    async createShopByOwner(shopData) {
-        return this.request('/api/shops', {
+    async createCategory(categoryData) {
+        return this.request('/api/categories', {
             method: 'POST',
-            body: JSON.stringify(shopData),
+            body: JSON.stringify(categoryData),
         });
     }
 
-    async getShopAdminData() {
-        try {
-            const shop = await this.getShopByOwner();
-            return { exists: true, shop };
-        } catch (error) {
-            // If 404, shop doesn't exist for this user
-            if (error.message && error.message.includes('404')) {
-                return { exists: false };
-            }
-            // Re-throw other errors
-            throw error;
-        }
+    async updateCategory(id, categoryData) {
+        return this.request(`/api/categories/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(categoryData),
+        });
+    }    async deleteCategory(id) {
+        return this.request(`/api/categories/${id}`, {
+            method: 'DELETE',
+        });
     }
 }
 
