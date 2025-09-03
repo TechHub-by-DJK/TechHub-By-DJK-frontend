@@ -92,20 +92,21 @@ const ShopDashboard = () => {
     name: '',
     description: '',
     buildingtype: 'ELECTRONICS',
-    address: {
+  address: {
       streetAddress: '',
       city: '',
       state: '',
       zipCode: '',
       country: 'Sri Lanka'
     },
-    contactInformation: {
-      email: '',
-      phone: '',
-      website: ''
-    },
-    openingHours: '',
-    images: []
+  // Flattened fields to match backend update schema
+  email: '',
+  mobile: '',
+  facebook: '',
+  instagram: '',
+  twitter: '',
+  openingHours: '',
+  images: []
   });
 
   // Dialog states for Product Management
@@ -571,15 +572,67 @@ const ShopDashboard = () => {
     try {
       setLoading(true);
       let response;
-      
+
+      // Validate and filter images for DB safety
+      const imageValidation = validateImagesForBackend(shopFormData.images || []);
+      if (imageValidation.hasIssues) {
+        const message = getImageValidationMessage(imageValidation);
+        setSnackbar({ open: true, message, severity: 'warning' });
+      }
+
+      // Determine address_id strategy: backend expects address_id, not nested object
+      let addressId = shop?.address?.id || null;
+      const addr = shopFormData.address || {};
+      const currentAddr = shop?.address || {};
+      const addressChanged = (
+        (addr.streetAddress || '') !== (currentAddr.streetAddress || '') ||
+        (addr.city || '') !== (currentAddr.city || '') ||
+        (addr.state || '') !== (currentAddr.state || '') ||
+        (addr.zipCode || '') !== (currentAddr.zipCode || '') ||
+        (addr.country || 'Sri Lanka') !== (currentAddr.country || 'Sri Lanka')
+      );
+
+      if (addressChanged) {
+        try {
+          const createdAddr = await apiService.createAddress({
+            streetAddress: addr.streetAddress || '',
+            city: addr.city || '',
+            state: addr.state || '',
+            zipCode: addr.zipCode || '',
+            country: addr.country || 'Sri Lanka'
+          });
+          addressId = createdAddr?.id || addressId;
+        } catch (addrErr) {
+          console.error('Failed to create address for shop update:', addrErr);
+          // Continue without changing address if creation fails
+        }
+      }
+
+      // Build payload matching backend schema
+      const payload = {
+        name: shopFormData.name,
+        description: shopFormData.description,
+        buildingtype: shopFormData.buildingtype,
+        openingHours: shopFormData.openingHours,
+        images: imageValidation.validImages,
+        // Contact fields
+        email: shopFormData.email || null,
+        mobile: shopFormData.mobile || null,
+        facebook: shopFormData.facebook || null,
+        instagram: shopFormData.instagram || null,
+        twitter: shopFormData.twitter || null,
+        // Address linkage
+        ...(addressId ? { address_id: addressId } : {})
+      };
+
       if (shop) {
         // Update existing shop
-        response = await apiService.updateShop(shop.id, shopFormData);
+        response = await apiService.updateShop(shop.id, payload);
         setShop(response.data || response);
         setSnackbar({ open: true, message: 'Shop updated successfully', severity: 'success' });
       } else {
         // Create new shop
-        response = await apiService.createShop(shopFormData);
+        response = await apiService.createShop({ ...payload, address_id: addressId });
         setShop(response.data || response);
         setSnackbar({ open: true, message: 'Shop created successfully', severity: 'success' });
       }
@@ -1112,8 +1165,12 @@ const ShopDashboard = () => {
                         zipCode: shop?.address?.zipCode || '',
                         country: shop?.address?.country || 'Sri Lanka'
                       },
-                      contactInformation: shopFormData.contactInformation || { email: '', phone: '', website: '' },
-                      openingHours: shopFormData.openingHours || '',
+                      email: shop?.email || '',
+                      mobile: shop?.mobile || shop?.phoneNumber || '',
+                      facebook: shop?.facebook || '',
+                      instagram: shop?.instagram || '',
+                      twitter: shop?.twitter || '',
+                      openingHours: shop?.openingHours || shopFormData.openingHours || '',
                       images: Array.isArray(shop?.images) ? shop.images : (shop?.imageUrl ? [shop.imageUrl] : []),
                       phoneNumber: shop?.phoneNumber || ''
                     });
@@ -1770,10 +1827,55 @@ const ShopDashboard = () => {
               <TextField
                 fullWidth
                 label="Phone Number"
-                value={shopFormData.phoneNumber}
+                value={shopFormData.mobile || shopFormData.phoneNumber || ''}
                 onChange={(e) => setShopFormData(prev => ({
                   ...prev,
-                  phoneNumber: e.target.value
+                  mobile: e.target.value
+                }))}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Contact Email"
+                type="email"
+                value={shopFormData.email || ''}
+                onChange={(e) => setShopFormData(prev => ({
+                  ...prev,
+                  email: e.target.value
+                }))}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="Facebook"
+                value={shopFormData.facebook || ''}
+                onChange={(e) => setShopFormData(prev => ({
+                  ...prev,
+                  facebook: e.target.value
+                }))}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="Instagram"
+                value={shopFormData.instagram || ''}
+                onChange={(e) => setShopFormData(prev => ({
+                  ...prev,
+                  instagram: e.target.value
+                }))}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="Twitter"
+                value={shopFormData.twitter || ''}
+                onChange={(e) => setShopFormData(prev => ({
+                  ...prev,
+                  twitter: e.target.value
                 }))}
               />
             </Grid>

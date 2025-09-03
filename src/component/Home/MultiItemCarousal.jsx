@@ -5,7 +5,7 @@ import Slider from 'react-slick';
 import { Card, CardMedia, CardContent, Typography, Box, Rating, Chip } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
-const MultiItemCarousal = ({ computers = [] }) => {
+const MultiItemCarousal = ({ computers = [], onItemClick }) => {
     const navigate = useNavigate();
 
     const settings = {
@@ -42,6 +42,13 @@ const MultiItemCarousal = ({ computers = [] }) => {
         ]
     };
 
+    const getImage = (item) => item?.images?.[0] || item?.imageUrl || "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=400";
+
+    const handleClick = (item) => {
+        if (onItemClick) return onItemClick(item);
+        navigate(`/computer/${item.id}`);
+    };
+
     const ComputerCarouselItem = ({ computer }) => (
         <div className="px-2">
             <Card 
@@ -53,12 +60,12 @@ const MultiItemCarousal = ({ computers = [] }) => {
                         transform: 'scale(1.05)'
                     }
                 }}
-                onClick={() => navigate(`/computer/${computer.id}`)}
+                onClick={() => handleClick(computer)}
             >
                 <CardMedia
                     component="img"
                     height="150"
-                    image={computer.images?.[0] || "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=400"}
+                    image={getImage(computer)}
                     alt={computer.name}
                 />
                 <CardContent sx={{ p: 1 }}>
@@ -74,7 +81,7 @@ const MultiItemCarousal = ({ computers = [] }) => {
                     </Box>
 
                     <Chip 
-                        label={computer.brand || 'Tech'} 
+                        label={computer.brand || computer.category?.name || 'Tech'} 
                         size="small" 
                         sx={{ mb: 1, fontSize: '0.7rem' }}
                     />

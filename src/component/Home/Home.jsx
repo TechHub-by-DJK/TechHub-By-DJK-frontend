@@ -7,14 +7,17 @@ import ApiService from '../../services/api'
 import './Home.css'
 import MultiItemCarousal from './MultiItemCarousal'
 import { useAuth } from '../../contexts/AuthContext'
-import { isShopOwner, isAdmin, getDashboardUrl } from '../../utils/roleUtils'
+import { isShopOwner, isAdmin } from '../../utils/roleUtils'
 
 const Home = () => {
     const navigate = useNavigate();
     const { user, isAuthenticated } = useAuth();
     const [shops, setShops] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [featuredComputers, setFeaturedComputers] = useState([]);    useEffect(() => {
+    const [shopsError, setShopsError] = useState(null);
+    const [featuredComputers, setFeaturedComputers] = useState([]);
+
+    useEffect(() => {
         // Debug log
         console.log('Home component - Auth status:', isAuthenticated, 'User role:', user?.role);
         
@@ -44,31 +47,13 @@ const Home = () => {
 
     const fetchShops = async () => {
         try {
+            setShopsError(null);
             const shopsData = await ApiService.getAllShops();
-            setShops(shopsData.slice(0, 8)); // Show first 8 shops
+            setShops((Array.isArray(shopsData) ? shopsData : shopsData?.data || []).slice(0, 8)); // Show first 8 shops
         } catch (error) {
             console.error('Failed to fetch shops:', error);
-            // Use mock data if API fails
-            setShops([
-                {
-                    id: 1,
-                    name: "Sell-X Computers",
-                    description: "Gaming and professional computers",
-                    buildingtype: "Gaming",
-                    images: ["https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400"],
-                    address: { city: "Matara" },
-                    open: true
-                },
-                {
-                    id: 2,
-                    name: "Tech Valley",
-                    description: "Business laptops and workstations",
-                    buildingtype: "Business",
-                    images: ["https://images.unsplash.com/photo-1554774853-719586f82d77?w=400"],
-                    address: { city: "Colombo" },
-                    open: true
-                }
-            ]);
+            setShopsError('Failed to load shops.');
+            setShops([]);
         } finally {
             setLoading(false);
         }
@@ -76,28 +61,13 @@ const Home = () => {
 
     const fetchFeaturedComputers = async () => {
         try {
-            // In a real app, you might have a featured products endpoint
-            // For now, we'll use mock data
-            setFeaturedComputers([
-                {
-                    id: 1,
-                    name: "Gaming Beast Pro",
-                    price: 350000,
-                    images: ["https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=400"],
-                    rating: 4.8,
-                    brand: "MSI"
-                },
-                {
-                    id: 2,
-                    name: "Business Elite",
-                    price: 180000,
-                    images: ["https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400"],
-                    rating: 4.5,
-                    brand: "Dell"
-                }
-            ]);
+            // Use tech gadgets as featured items for the homepage
+            const res = await ApiService.getAllTechGadgets({ page: 0, size: 10, sort: 'rating,desc' });
+            const items = res?.data?.content || res?.data || [];
+            setFeaturedComputers(items);
         } catch (error) {
             console.error('Failed to fetch featured computers:', error);
+            setFeaturedComputers([]);
         }
     };
 
@@ -171,7 +141,10 @@ const Home = () => {
 
             <section className='p-10 lg:py-10 lg:px-20'>
                 <p className='text-2xl font-semibold text-gray-400 py-3 pb-10'>Featured Products</p>
-                <MultiItemCarousal computers={featuredComputers} />
+                <MultiItemCarousal 
+                    computers={featuredComputers} 
+                    onItemClick={(item) => navigate(`/gadget/${item.id}`)}
+                />
             </section>
 
             <Container maxWidth="lg" sx={{ mt: 4 }}>
@@ -183,6 +156,12 @@ const Home = () => {
                     <Box display="flex" justifyContent="center" p={4}>
                         <CircularProgress />
                     </Box>
+                ) : shops.length === 0 ? (
+                    <Box textAlign="center" p={4}>
+                        <Typography color="text.secondary">
+                            {shopsError || 'No shops to display right now.'}
+                        </Typography>
+                    </Box>
                 ) : (
                     <Grid container spacing={3}>
                         {shops.map((shop) => (
@@ -191,7 +170,8 @@ const Home = () => {
                             </Grid>
                         ))}
                     </Grid>
-                )}                <Box textAlign="center" mt={4}>
+                )}
+                <Box textAlign="center" mt={4}>
                     <Button 
                         variant="outlined" 
                         size="large"
