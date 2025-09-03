@@ -60,6 +60,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { apiService } from '../../services/api';
 import ImageUpload from '../Common/ImageUpload';
+import uploadService from '../../services/upload';
 import ApiDebugger from '../Common/ApiDebugger';
 
 const ShopDashboard = () => {
@@ -82,6 +83,9 @@ const ShopDashboard = () => {
   const [error, setError] = useState(null);
   const [hasNoShop, setHasNoShop] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  // Orders details dialog
+  const [orderDetailsOpen, setOrderDetailsOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
 
   // Dialog states for Shop Management
   const [shopDialogOpen, setShopDialogOpen] = useState(false);
@@ -161,6 +165,9 @@ const ShopDashboard = () => {
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [menuType, setMenuType] = useState('');
+  // Shop image upload state
+  const [shopImageUploading, setShopImageUploading] = useState(false);
+  const [shopImageProgress, setShopImageProgress] = useState(0);
   const loadShopData = useCallback(async () => {
     try {
       setLoading(true);
@@ -261,11 +268,11 @@ const ShopDashboard = () => {
   const calculateAnalytics = (ordersData) => {
     const today = new Date();
     const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
-    
-    const recentOrders = ordersData.filter(order => new Date(order.orderDate) >= lastMonth);
-    const totalRevenue = ordersData.reduce((sum, order) => sum + order.totalAmount, 0);
-    const monthlyRevenue = recentOrders.reduce((sum, order) => sum + order.totalAmount, 0);
-    
+
+    const recentOrders = ordersData.filter(order => new Date(order.createdAt || order.orderDate) >= lastMonth);
+    const totalRevenue = ordersData.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+    const monthlyRevenue = recentOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+
     setAnalytics({
       totalOrders: ordersData.length,
       monthlyOrders: recentOrders.length,
@@ -273,7 +280,8 @@ const ShopDashboard = () => {
       monthlyRevenue,
       averageOrderValue: ordersData.length > 0 ? totalRevenue / ordersData.length : 0
     });
-  };  // Enhanced Computer Management Functions
+  };
+  // Enhanced Computer Management Functions
   const handleAddComputer = () => {
     if (!shop || !shop.id) {
       setSnackbar({ open: true, message: 'Shop information is missing. Please refresh the page and try again.', severity: 'error' });
@@ -383,8 +391,10 @@ const ShopDashboard = () => {
         isDesigner: computerFormData.isDesigner,
         isDeveloper: computerFormData.isDeveloper,
         isSeasonal: computerFormData.isSeasonal,
-        computerCategoryId: computerFormData.computerCategoryId, // Use the ID, not the object
-        shopId: shop.id,        available: computerFormData.available,
+        // Backend expects a Category object in CreateComputerRequest
+        category: computerFormData.computerCategoryId ? { id: computerFormData.computerCategoryId } : null,
+        shopId: shop.id,
+        available: computerFormData.available,
         includedComponents: [] // Empty for now
       };
 
@@ -394,8 +404,8 @@ const ShopDashboard = () => {
       console.log('Category ID:', computerFormData.computerCategoryId);
 
       if (selectedComputer) {
-        await apiService.updateComputer(selectedComputer.id, computerData);
-        setSnackbar({ open: true, message: 'Computer updated successfully!', severity: 'success' });
+        // Editing full computer details is not supported by backend; only availability toggle exists
+        setSnackbar({ open: true, message: 'Editing existing computer details is not supported by the backend. You can delete and recreate the product.', severity: 'warning' });
       } else {
         await apiService.createComputer(computerData);
         setSnackbar({ open: true, message: 'Computer created successfully!', severity: 'success' });
@@ -406,7 +416,6 @@ const ShopDashboard = () => {
     } catch (error) {
       console.error('Error saving computer:', error);
       setSnackbar({ open: true, message: 'Failed to save computer. Please try again.', severity: 'error' });
-    } finally {
       setLoading(false);
     }
   };
@@ -432,7 +441,6 @@ const ShopDashboard = () => {
       setSnackbar({ open: true, message: 'Shop information is missing. Please refresh the page and try again.', severity: 'error' });
       return;
     }
-
     setSelectedGadget(null);
     setGadgetFormData({
       name: '',
@@ -560,16 +568,7 @@ const ShopDashboard = () => {
     }
   };
 
-  const handleDeleteCategory = async (categoryId) => {
-    try {
-      await apiService.deleteCategory(categoryId);
-      setCategories(prev => prev.filter(cat => cat.id !== categoryId));
-      setSnackbar({ open: true, message: 'Category deleted successfully', severity: 'success' });
-    } catch (error) {
-      console.error('Error deleting category:', error);
-      setSnackbar({ open: true, message: 'Failed to delete category', severity: 'error' });
-    }
-  };
+  // Note: Delete/Update category not supported by backend; UI only lists categories
 
   const handleSaveShop = async () => {
     try {
@@ -615,14 +614,21 @@ const ShopDashboard = () => {
     });
   };
 
-  const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'completed': return 'success';
-      case 'pending': return 'warning';
-      case 'cancelled': return 'error';
-      default: return 'primary';
-    }
+  const formatAddress = (addr) => {
+    if (!addr || typeof addr !== 'object') return 'Not set';
+    const parts = [addr.streetAddress, addr.city, addr.state, addr.zipCode, addr.country].filter(Boolean);
+    return parts.length ? parts.join(', ') : 'Not set';
   };
+
+  // Kept for potential future use if we show chips again
+  // const getStatusColor = (status) => {
+  //   switch (status?.toLowerCase()) {
+  //     case 'completed': return 'success';
+  //     case 'pending': return 'warning';
+  //     case 'cancelled': return 'error';
+  //     default: return 'primary';
+  //   }
+  // };
 
   const handleSnackbarClose = () => {
     setSnackbar({ ...snackbar, open: false });
@@ -891,7 +897,7 @@ const ShopDashboard = () => {
                           <TableCell>
                             <Box sx={{ display: 'flex', alignItems: 'center' }}>
                               <Avatar
-                                src={computer.imageUrl}
+                                src={(computer.images && computer.images[0]) || computer.imageUrl || ''}
                                 alt={computer.name}
                                 sx={{ mr: 2, width: 48, height: 48 }}
                               />
@@ -910,10 +916,10 @@ const ShopDashboard = () => {
                           <TableCell>
                             <Box>
                               <Typography variant="body2">
-                                {computer.processor}
+                                {computer.cpu || computer.processor || '—'}
                               </Typography>
                               <Typography variant="body2" color="text.secondary">
-                                {computer.ram}GB RAM • {computer.storage}
+                                {computer.ram || '—'} RAM • {computer.storage || '—'}
                               </Typography>
                             </Box>
                           </TableCell>
@@ -959,7 +965,7 @@ const ShopDashboard = () => {
                           <TableCell>
                             <Box sx={{ display: 'flex', alignItems: 'center' }}>
                               <Avatar
-                                src={gadget.imageUrl}
+                                src={(gadget.images && gadget.images[0]) || gadget.imageUrl || ''}
                                 alt={gadget.name}
                                 sx={{ mr: 2, width: 48, height: 48 }}
                               />
@@ -977,7 +983,7 @@ const ShopDashboard = () => {
                           <TableCell>{formatPrice(gadget.price)}</TableCell>
                           <TableCell>
                             <Chip 
-                              label={gadget.category} 
+                              label={gadget.category?.name || (typeof gadget.category === 'string' ? gadget.category : '—')} 
                               size="small" 
                               color="primary" 
                               variant="outlined" 
@@ -1025,20 +1031,37 @@ const ShopDashboard = () => {
                     <TableRow key={order.id}>
                       <TableCell>#{order.id}</TableCell>
                       <TableCell>
-                        {order.user?.firstName} {order.user?.lastName}
+                        {order.customer?.fullName || order.customer?.email || 'Customer'}
                       </TableCell>
-                      <TableCell>{formatDate(order.orderDate)}</TableCell>
-                      <TableCell>{order.orderItems?.length || 0}</TableCell>
-                      <TableCell>{formatPrice(order.totalAmount)}</TableCell>
+                      <TableCell>{formatDate(order.createdAt || order.orderDate)}</TableCell>
+                      <TableCell>{order.items?.length ?? order.totalItem ?? order.orderItems?.length ?? 0}</TableCell>
+                      <TableCell>{formatPrice(order.totalAmount || order.totalPrice || 0)}</TableCell>
                       <TableCell>
-                        <Chip
-                          label={order.status || 'Pending'}
-                          color={getStatusColor(order.status)}
-                          size="small"
-                        />
+                        <FormControl size="small" sx={{ minWidth: 140 }}>
+                          <Select
+                            value={(order.orderStatus || order.status || 'PENDING').toUpperCase()}
+                            onChange={async (e) => {
+                              const newStatus = e.target.value;
+                              try {
+                                await apiService.updateOrderStatus(order.id, newStatus);
+                                setOrders(prev => prev.map(o => o.id === order.id ? { ...o, orderStatus: newStatus } : o));
+                                const updated = orders.map(o => o.id === order.id ? { ...o, orderStatus: newStatus } : o);
+                                calculateAnalytics(updated);
+                                setSnackbar({ open: true, message: 'Order status updated', severity: 'success' });
+                              } catch (err) {
+                                console.error('Failed to update order status', err);
+                                setSnackbar({ open: true, message: 'Failed to update order status', severity: 'error' });
+                              }
+                            }}
+                          >
+                            <MenuItem value="PENDING">Pending</MenuItem>
+                            <MenuItem value="COMPLETED">Completed</MenuItem>
+                            <MenuItem value="CANCELLED">Cancelled</MenuItem>
+                          </Select>
+                        </FormControl>
                       </TableCell>
                       <TableCell>
-                        <IconButton size="small">
+                        <IconButton size="small" onClick={() => { setSelectedOrder(order); setOrderDetailsOpen(true); }}>
                           <ViewIcon />
                         </IconButton>
                       </TableCell>
@@ -1102,7 +1125,7 @@ const ShopDashboard = () => {
                       <strong>Description:</strong> {shop?.description || 'No description'}
                     </Typography>
                     <Typography variant="body1" gutterBottom>
-                      <strong>Address:</strong> {shop?.address || 'Not set'}
+                      <strong>Address:</strong> {formatAddress(shop?.address)}
                     </Typography>
                     <Typography variant="body1" gutterBottom>
                       <strong>Phone:</strong> {shop?.phoneNumber || 'Not set'}
@@ -1550,43 +1573,49 @@ const ShopDashboard = () => {
               />
             </Grid>
             <Grid item xs={12} sm={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Category</InputLabel>
+                  <Select
+                    value={gadgetFormData.categoryId || ''}
+                    label="Category"
+                    onChange={(e) => setGadgetFormData(prev => ({
+                      ...prev,
+                      categoryId: e.target.value
+                    }))}
+                  >
+                    {categories.map((category) => (
+                      <MenuItem key={category.id} value={category.id}>
+                        {category.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
               <FormControl fullWidth>
-                <InputLabel>Category</InputLabel>
+                <InputLabel>Compatibility</InputLabel>
                 <Select
-                  value={gadgetFormData.category}
-                  label="Category"
+                  value={gadgetFormData.compatibilityType}
+                  label="Compatibility"
                   onChange={(e) => setGadgetFormData(prev => ({
                     ...prev,
-                    category: e.target.value
+                    compatibilityType: e.target.value
                   }))}
                 >
-                  {categories.map((category) => (
-                    <MenuItem key={category.id} value={category.name}>
-                      {category.name}
-                    </MenuItem>
-                  ))}
+                  <MenuItem value="PC">PC</MenuItem>
+                  <MenuItem value="LAPTOP">Laptop</MenuItem>
+                  <MenuItem value="BOTH">Both</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="Compatibility"
-                value={gadgetFormData.compatibility}
+                label="Specs / Features"
+                value={gadgetFormData.specs}
                 onChange={(e) => setGadgetFormData(prev => ({
                   ...prev,
-                  compatibility: e.target.value
-                }))}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Features"
-                value={gadgetFormData.features}
-                onChange={(e) => setGadgetFormData(prev => ({
-                  ...prev,
-                  features: e.target.value
+                  specs: e.target.value
                 }))}
               />
             </Grid>
@@ -1661,16 +1690,65 @@ const ShopDashboard = () => {
                 }))}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Address"
-                value={shopFormData.address}
-                onChange={(e) => setShopFormData(prev => ({
-                  ...prev,
-                  address: e.target.value
-                }))}
-              />
+            <Grid item xs={12}>
+              <Typography variant="subtitle1" sx={{ mb: 1 }}>Address</Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Street Address"
+                    value={shopFormData.address?.streetAddress || ''}
+                    onChange={(e) => setShopFormData(prev => ({
+                      ...prev,
+                      address: { ...(prev.address || {}), streetAddress: e.target.value }
+                    }))}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="City"
+                    value={shopFormData.address?.city || ''}
+                    onChange={(e) => setShopFormData(prev => ({
+                      ...prev,
+                      address: { ...(prev.address || {}), city: e.target.value }
+                    }))}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="State/Province"
+                    value={shopFormData.address?.state || ''}
+                    onChange={(e) => setShopFormData(prev => ({
+                      ...prev,
+                      address: { ...(prev.address || {}), state: e.target.value }
+                    }))}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Postal Code"
+                    value={shopFormData.address?.zipCode || ''}
+                    onChange={(e) => setShopFormData(prev => ({
+                      ...prev,
+                      address: { ...(prev.address || {}), zipCode: e.target.value }
+                    }))}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Country"
+                    value={shopFormData.address?.country || ''}
+                    onChange={(e) => setShopFormData(prev => ({
+                      ...prev,
+                      address: { ...(prev.address || {}), country: e.target.value }
+                    }))}
+                  />
+                </Grid>
+              </Grid>
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
@@ -1694,6 +1772,33 @@ const ShopDashboard = () => {
                 }))}
                 helperText="Enter a valid image URL for your shop"
               />
+              <Box sx={{ mt: 1 }}>
+                <Button variant="outlined" size="small" component="label" disabled={shopImageUploading}>
+                  {shopImageUploading ? `Uploading ${shopImageProgress}%` : 'Upload Shop Image'}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg"
+                    hidden
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try {
+                        setShopImageUploading(true);
+                        setShopImageProgress(0);
+                        const token = localStorage.getItem('jwt') || '';
+                        const url = await uploadService.uploadImage(file, 'shop', token, setShopImageProgress);
+                        setShopFormData(prev => ({ ...prev, imageUrl: url }));
+                      } catch (err) {
+                        setSnackbar({ open: true, message: err.message || 'Failed to upload image', severity: 'error' });
+                      } finally {
+                        setShopImageUploading(false);
+                        setShopImageProgress(0);
+                        e.target.value = '';
+                      }
+                    }}
+                  />
+                </Button>
+              </Box>
             </Grid>
           </Grid>
         </DialogContent>
@@ -1748,7 +1853,7 @@ const ShopDashboard = () => {
             Existing Categories
           </Typography>
           
-          {categories.length === 0 ? (
+    {categories.length === 0 ? (
             <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
               No categories created yet
             </Typography>
@@ -1767,13 +1872,7 @@ const ShopDashboard = () => {
                   }}
                 >
                   <Typography variant="body1">{category.name}</Typography>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleDeleteCategory(category.id)}
-                    color="error"
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
+      {/* Delete not supported by backend */}
                 </Box>
               ))}
             </Box>
@@ -1783,6 +1882,61 @@ const ShopDashboard = () => {
           <Button onClick={() => setCategoryDialogOpen(false)}>
             Close
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Order Details Dialog */}
+      <Dialog
+        open={orderDetailsOpen}
+        onClose={() => setOrderDetailsOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Order Details #{selectedOrder?.id}</DialogTitle>
+        <DialogContent>
+          {selectedOrder && (
+            <Box>
+              <Grid container spacing={2} sx={{ mb: 2 }}>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body1"><strong>Date:</strong> {formatDate(selectedOrder.createdAt || selectedOrder.orderDate)}</Typography>
+                  <Typography variant="body1"><strong>Status:</strong> {(selectedOrder.orderStatus || selectedOrder.status)}</Typography>
+                  <Typography variant="body1"><strong>Total:</strong> {formatPrice(selectedOrder.totalAmount || selectedOrder.totalPrice || 0)}</Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body1"><strong>Customer:</strong> {selectedOrder.customer?.fullName || selectedOrder.customer?.email}</Typography>
+                  {selectedOrder.deliveryAddress && (
+                    <Typography variant="body2" color="text.secondary">
+                      <strong>Address:</strong> {selectedOrder.deliveryAddress.streetAddress || ''} {selectedOrder.deliveryAddress.city || ''}
+                    </Typography>
+                  )}
+                </Grid>
+              </Grid>
+
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Item</TableCell>
+                      <TableCell>Qty</TableCell>
+                      <TableCell align="right">Total</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {(selectedOrder.items || selectedOrder.orderItems || []).map((it) => (
+                      <TableRow key={it.id}>
+                        <TableCell>{it.computer?.name || 'Computer'}</TableCell>
+                        <TableCell>{it.quantity}</TableCell>
+                        <TableCell align="right">{formatPrice(it.totalPrice || 0)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOrderDetailsOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
 

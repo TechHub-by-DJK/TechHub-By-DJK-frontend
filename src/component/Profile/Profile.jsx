@@ -37,6 +37,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiService } from '../../services/api';
+import uploadService from '../../services/upload';
 
 const Profile = () => {
   const { user, updateUser } = useAuth();  const [profileData, setProfileData] = useState({
@@ -66,6 +67,9 @@ const Profile = () => {
     promotions: false,
     newsletter: true
   });
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarProgress, setAvatarProgress] = useState(0);
+  const [avatarUrl, setAvatarUrl] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -73,7 +77,7 @@ const Profile = () => {
     }
   }, [user]);  const loadUserProfile = async () => {
     try {
-      const userData = await apiService.getUserProfile(); // Backend returns User object directly
+  const userData = await apiService.getUserProfile(); // Backend returns User object directly
       setProfileData({
         fullName: userData.fullName || '',
         email: userData.email || '',
@@ -92,9 +96,35 @@ const Profile = () => {
           postalCode: ''
         }
       });
+      // set avatarUrl if backend contains an avatar field
+      if (userData.avatarUrl || userData.profileImageUrl || userData.imageUrl) {
+        setAvatarUrl(userData.avatarUrl || userData.profileImageUrl || userData.imageUrl);
+      }
     } catch (error) {
       console.error('Error loading profile:', error);
       setError('Failed to load profile data');
+    }
+  };
+
+  const handleAvatarFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setError(null);
+      setAvatarUploading(true);
+      setAvatarProgress(0);
+      const token = localStorage.getItem('jwt') || '';
+      const url = await uploadService.uploadImage(file, 'profile', token, setAvatarProgress);
+      setAvatarUrl(url);
+  // Refresh user from backend (PUT not supported on /api/users/profile)
+  const fresh = await apiService.getUserProfile();
+  updateUser(fresh);
+  setSuccess('Profile photo updated');
+    } catch (err) {
+      setError(err.message || 'Failed to upload profile image');
+    } finally {
+      setAvatarUploading(false);
+      setTimeout(() => setSuccess(null), 2500);
     }
   };
 
@@ -117,22 +147,11 @@ const Profile = () => {
   };
 
   const handleSave = async () => {
-    try {
-      setSaving(true);
-      setError(null);
-      
-      const response = await apiService.updateUserProfile(profileData);
-      updateUser(response.data);
-      setSuccess('Profile updated successfully!');
-      setIsEditing(false);
-      
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      setError('Failed to update profile. Please try again.');
-    } finally {
-      setSaving(false);
-    }
+    // Backend does not support updating user profile details yet
+    setError(null);
+    setSuccess('Profile editing is not supported by the server yet.');
+    setIsEditing(false);
+    setTimeout(() => setSuccess(null), 3000);
   };
 
   const handleCancel = () => {
@@ -217,7 +236,8 @@ const Profile = () => {
       <Grid container spacing={4}>
         {/* Profile Overview */}
         <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 3, textAlign: 'center' }}>            <Avatar
+          <Paper sx={{ p: 3, textAlign: 'center' }}>
+            <Avatar
               sx={{ 
                 width: 120, 
                 height: 120, 
@@ -226,9 +246,16 @@ const Profile = () => {
                 bgcolor: 'primary.main',
                 fontSize: '2rem'
               }}
+              src={avatarUrl || undefined}
             >
-              {user?.fullName?.charAt(0) || user?.email?.charAt(0) || 'U'}
+              {!avatarUrl && (user?.fullName?.charAt(0) || user?.email?.charAt(0) || 'U')}
             </Avatar>
+            <Box sx={{ mb: 2 }}>
+              <Button variant="outlined" size="small" component="label" disabled={avatarUploading}>
+                {avatarUploading ? `Uploading ${avatarProgress}%` : 'Change Photo'}
+                <input type="file" accept="image/png,image/jpeg" hidden onChange={handleAvatarFile} />
+              </Button>
+            </Box>
             <Typography variant="h5" sx={{ mb: 1 }}>
               {profileData.fullName || 'User Name'}
             </Typography>

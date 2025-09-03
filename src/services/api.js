@@ -205,6 +205,15 @@ class ApiService {
         });
     }
 
+    // Note: Backend only supports toggling availability via PUT /api/admin/computer/{id}
+    // There is no full update endpoint for computer details.
+    async updateComputer(computerId, computerData) {
+        // Fallback to availability toggle if invoked inadvertently
+        return this.request(`/api/admin/computer/${computerId}`, {
+            method: 'PUT',
+        });
+    }
+
     async deleteComputer(computerId) {
         return this.request(`/api/admin/computer/${computerId}`, {
             method: 'DELETE',
@@ -262,10 +271,8 @@ class ApiService {
     }
 
     async updateUserProfile(profileData) {
-        return this.request('/api/users/profile', {
-            method: 'PUT',
-            body: JSON.stringify(profileData),
-        });
+        // Backend does not support PUT /api/users/profile as of now
+        throw new Error('Updating user profile is not supported by the backend');
     }
 
     async changePassword(passwordData) {
@@ -283,27 +290,28 @@ class ApiService {
                 queryParams.append(key, params[key]);
             }
         });
-        return this.request(`/api/tech-gadgets?${queryParams.toString()}`);
+        return this.request(`/api/techgadget?${queryParams.toString()}`);
     }
 
     async getTechGadgetById(id) {
-        return this.request(`/api/tech-gadgets/${id}`);
+        return this.request(`/api/techgadget/${id}`);
     }
 
     async createTechGadget(gadgetData) {
-        return this.request('/api/tech-gadgets', {
+        return this.request('/api/techgadget', {
             method: 'POST',
             body: JSON.stringify(gadgetData),
         });
     }
 
     async updateTechGadget(id, gadgetData) {
-        return this.request(`/api/tech-gadgets/${id}`, {
+        return this.request(`/api/techgadget/${id}`, {
             method: 'PUT',
             body: JSON.stringify(gadgetData),
         });
-    }    async deleteTechGadget(id) {
-        return this.request(`/api/tech-gadgets/${id}`, {
+    }
+    async deleteTechGadget(id) {
+        return this.request(`/api/techgadget/${id}`, {
             method: 'DELETE',
         });
     }
@@ -323,7 +331,7 @@ class ApiService {
     }
 
     async getAllCategories() {
-        return this.request('/api/categories');
+        return this.request('/api/category/shop');
     }
 
     async blockUser(userId) {
@@ -339,21 +347,20 @@ class ApiService {
     }
 
     async createCategory(categoryData) {
-        return this.request('/api/categories', {
+        // Backend endpoint for creating category
+        return this.request('/api/admin/category', {
             method: 'POST',
             body: JSON.stringify(categoryData),
         });
     }
 
     async updateCategory(id, categoryData) {
-        return this.request(`/api/categories/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(categoryData),
-        });
-    }    async deleteCategory(id) {
-        return this.request(`/api/categories/${id}`, {
-            method: 'DELETE',
-        });
+        // Not supported by backend as of now
+        throw new Error('Update category is not supported by the backend');
+    }
+    async deleteCategory(id) {
+        // Not supported by backend as of now
+        throw new Error('Delete category is not supported by the backend');
     }
 }
 

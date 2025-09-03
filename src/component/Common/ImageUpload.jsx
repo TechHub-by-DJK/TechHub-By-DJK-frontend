@@ -28,13 +28,14 @@ import {
   Link as LinkIcon,
   Help as HelpIcon
 } from '@mui/icons-material';
-import { imageUploadService } from '../../services/imageUpload';
+import uploadService from '../../services/upload';
 
 const ImageUpload = ({ images = [], onImagesChange, maxImages = 5 }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [imageUrl, setImageUrl] = useState('');
   const [showHelp, setShowHelp] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const imageHostingSuggestions = [
     {
@@ -68,21 +69,18 @@ const ImageUpload = ({ images = [], onImagesChange, maxImages = 5 }) => {
 
     try {
       setUploading(true);
-      
-      // Use the image upload service to upload to cloud
-      const imageUrl = await imageUploadService.uploadImage(file);
-      
-      // Add the URL to the images array
+      setUploadProgress(0);
+      const token = localStorage.getItem('jwt') || '';
+      // Upload via backend -> Cloudinary for 'product' images
+      const imageUrl = await uploadService.uploadImage(file, 'product', token, setUploadProgress);
       onImagesChange([...images, imageUrl]);
-      
-      // Show success message
       console.log('Image uploaded successfully:', imageUrl);
-      
     } catch (error) {
       console.error('Error uploading image:', error);
       alert('Failed to upload image: ' + error.message);
     } finally {
       setUploading(false);
+      setUploadProgress(0);
       // Clear the file input
       event.target.value = '';
     }
@@ -144,18 +142,19 @@ const ImageUpload = ({ images = [], onImagesChange, maxImages = 5 }) => {
                 onChange={handleFileUpload}
                 disabled={uploading || images.length >= maxImages}
               />
-              <label htmlFor="image-upload-button">                <Button
+                <label htmlFor="image-upload-button">
+                <Button
                   variant="outlined"
                   component="span"
                   startIcon={uploading ? <CircularProgress size={20} /> : <CloudUploadIcon />}
                   disabled={uploading || images.length >= maxImages}
                   sx={{ mb: 1 }}
                 >
-                  {uploading ? 'Uploading to Cloud...' : 'Upload Image File'}
+                  {uploading ? `Uploading… ${uploadProgress}%` : 'Upload Image File'}
                 </Button>
               </label>
               <Typography variant="body2" color="text.secondary">
-                Max 5MB, JPG/PNG/GIF supported. Auto-uploads to free cloud hosting.
+                Max 5MB, JPG/PNG supported. Images are uploaded securely.
               </Typography>
             </Box>
           )}

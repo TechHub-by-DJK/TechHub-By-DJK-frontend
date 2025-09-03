@@ -132,7 +132,11 @@ export const AuthProvider = ({ children }) => {
         login,
         register,
         logout,
-        checkAuthStatus
+        checkAuthStatus,
+        updateUser: (newUser) => {
+            // Merge to preserve role and other fields unless provided
+            setUser((prev) => ({ ...(prev || {}), ...(newUser || {}) }));
+        }
     };
 
     return (
