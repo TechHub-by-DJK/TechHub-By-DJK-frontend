@@ -13,14 +13,18 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
 import { useNavigate } from 'react-router-dom';
 import { isShopOwner, isAdmin, isCustomer } from '../../utils/roleUtils';
+import uploadService from '../../services/upload';
+import { apiService } from '../../services/api';
 
 export const Navbar = () => {
-    const { user, isAuthenticated, logout } = useAuth();
+    const { user, isAuthenticated, logout, updateUser } = useAuth();
     const { getCartItemCount } = useCart();
     const navigate = useNavigate();
     const [anchorEl, setAnchorEl] = useState(null);
     const [searchOpen, setSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [avatarUploading, setAvatarUploading] = useState(false);
+    const [avatarProgress, setAvatarProgress] = useState(0);
 
     const handleMenuOpen = (event) => {
         setAnchorEl(event.currentTarget);
@@ -90,6 +94,13 @@ export const Navbar = () => {
                     handleMenuClose();
                 }
             });
+            // Quick action: change profile photo (shop owners)
+            items.push({
+                label: avatarUploading ? `Uploading ${avatarProgress}%` : 'Change Profile Photo',
+                icon: <AccountCircleIcon />,
+                onClick: () => {},
+                renderAsLabelWithInput: true
+            });
             
             items.push({
                 label: 'Manage Products',
@@ -127,7 +138,7 @@ export const Navbar = () => {
             onClick: handleLogout
         });
 
-        return items;
+    return items;
     };
 
     return (
@@ -165,8 +176,11 @@ export const Navbar = () => {
                         {isAuthenticated ? (
                             <>
                                 <IconButton onClick={handleMenuOpen} sx={{ color: 'white' }}>
-                                    <Avatar sx={{bgcolor:"white", color:pink.A400, width: 32, height: 32}}>
-                                        {user?.fullName?.charAt(0).toUpperCase() || <PersonIcon />}
+                                    <Avatar
+                                        sx={{ bgcolor: "white", color: pink.A400, width: 32, height: 32 }}
+                                        src={user?.avatarUrl || user?.profileImageUrl || user?.imageUrl || undefined}
+                                    >
+                                        {(user?.fullName && user?.fullName.charAt(0).toUpperCase()) || <PersonIcon />}
                                     </Avatar>
                                 </IconButton>
                                 <Menu
@@ -183,12 +197,49 @@ export const Navbar = () => {
                                         </Typography>
                                     </MenuItem>
                                     {getMenuItems().map((item, index) => (
-                                        <MenuItem key={index} onClick={item.onClick}>
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                {item.icon}
-                                                {item.label}
-                                            </Box>
-                                        </MenuItem>
+                                        item.renderAsLabelWithInput ? (
+                                            <MenuItem key={index} disabled={avatarUploading}>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                    {item.icon}
+                                                    <label style={{ cursor: avatarUploading ? 'not-allowed' : 'pointer' }}>
+                                                        {item.label}
+                                                        <input
+                                                            type="file"
+                                                            accept="image/png,image/jpeg"
+                                                            hidden
+                                                            onChange={async (e) => {
+                                                                const file = e.target.files?.[0];
+                                                                if (!file) return;
+                                                                try {
+                                                                    setAvatarUploading(true);
+                                                                    setAvatarProgress(0);
+                                                                    const token = localStorage.getItem('jwt') || '';
+                                                                    await uploadService.uploadImage(file, 'profile', token, setAvatarProgress);
+                                                                    // Refresh user from backend so avatarUrl reflects
+                                                                    const fresh = await apiService.getUserProfile();
+                                                                    updateUser(fresh);
+                                                                    handleMenuClose();
+                                                                } catch (err) {
+                                                                    console.error('Avatar upload failed', err);
+                                                                    handleMenuClose();
+                                                                } finally {
+                                                                    setAvatarUploading(false);
+                                                                    setAvatarProgress(0);
+                                                                    e.target.value = '';
+                                                                }
+                                                            }}
+                                                        />
+                                                    </label>
+                                                </Box>
+                                            </MenuItem>
+                                        ) : (
+                                            <MenuItem key={index} onClick={item.onClick}>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                    {item.icon}
+                                                    {item.label}
+                                                </Box>
+                                            </MenuItem>
+                                        )
                                     ))}
                                 </Menu>
                             </>

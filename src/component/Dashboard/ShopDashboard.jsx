@@ -60,7 +60,6 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { apiService } from '../../services/api';
 import ImageUpload from '../Common/ImageUpload';
-import uploadService from '../../services/upload';
 import ApiDebugger from '../Common/ApiDebugger';
 
 const ShopDashboard = () => {
@@ -165,9 +164,7 @@ const ShopDashboard = () => {
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [menuType, setMenuType] = useState('');
-  // Shop image upload state
-  const [shopImageUploading, setShopImageUploading] = useState(false);
-  const [shopImageProgress, setShopImageProgress] = useState(0);
+  // Shop images are handled via ImageUpload component now
   const loadShopData = useCallback(async () => {
     try {
       setLoading(true);
@@ -1102,7 +1099,26 @@ const ShopDashboard = () => {
                 <Button
                   variant="contained"
                   startIcon={<SettingsIcon />}
-                  onClick={() => setShopDialogOpen(true)}
+                  onClick={() => {
+                    // Prefill form with existing shop data
+                    setShopFormData({
+                      name: shop?.name || '',
+                      description: shop?.description || '',
+                      buildingtype: shopFormData.buildingtype || 'ELECTRONICS',
+                      address: {
+                        streetAddress: shop?.address?.streetAddress || '',
+                        city: shop?.address?.city || '',
+                        state: shop?.address?.state || '',
+                        zipCode: shop?.address?.zipCode || '',
+                        country: shop?.address?.country || 'Sri Lanka'
+                      },
+                      contactInformation: shopFormData.contactInformation || { email: '', phone: '', website: '' },
+                      openingHours: shopFormData.openingHours || '',
+                      images: Array.isArray(shop?.images) ? shop.images : (shop?.imageUrl ? [shop.imageUrl] : []),
+                      phoneNumber: shop?.phoneNumber || ''
+                    });
+                    setShopDialogOpen(true);
+                  }}
                 >
                   Edit Shop Details
                 </Button>
@@ -1762,43 +1778,16 @@ const ShopDashboard = () => {
               />
             </Grid>
             <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Shop Image URL"
-                value={shopFormData.imageUrl}
-                onChange={(e) => setShopFormData(prev => ({
+              <ImageUpload
+                images={shopFormData.images || []}
+                onImagesChange={(newImages) => setShopFormData(prev => ({
                   ...prev,
-                  imageUrl: e.target.value
+                  images: newImages
                 }))}
-                helperText="Enter a valid image URL for your shop"
+                maxImages={6}
+                uploadType="shop"
+                label="Shop Images"
               />
-              <Box sx={{ mt: 1 }}>
-                <Button variant="outlined" size="small" component="label" disabled={shopImageUploading}>
-                  {shopImageUploading ? `Uploading ${shopImageProgress}%` : 'Upload Shop Image'}
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg"
-                    hidden
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      try {
-                        setShopImageUploading(true);
-                        setShopImageProgress(0);
-                        const token = localStorage.getItem('jwt') || '';
-                        const url = await uploadService.uploadImage(file, 'shop', token, setShopImageProgress);
-                        setShopFormData(prev => ({ ...prev, imageUrl: url }));
-                      } catch (err) {
-                        setSnackbar({ open: true, message: err.message || 'Failed to upload image', severity: 'error' });
-                      } finally {
-                        setShopImageUploading(false);
-                        setShopImageProgress(0);
-                        e.target.value = '';
-                      }
-                    }}
-                  />
-                </Button>
-              </Box>
             </Grid>
           </Grid>
         </DialogContent>

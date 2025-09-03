@@ -30,7 +30,7 @@ import {
 } from '@mui/icons-material';
 import uploadService from '../../services/upload';
 
-const ImageUpload = ({ images = [], onImagesChange, maxImages = 5 }) => {
+const ImageUpload = ({ images = [], onImagesChange, maxImages = 5, uploadType = 'product', label = 'Product Images' }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [imageUrl, setImageUrl] = useState('');
   const [showHelp, setShowHelp] = useState(false);
@@ -70,9 +70,9 @@ const ImageUpload = ({ images = [], onImagesChange, maxImages = 5 }) => {
     try {
       setUploading(true);
       setUploadProgress(0);
-      const token = localStorage.getItem('jwt') || '';
-      // Upload via backend -> Cloudinary for 'product' images
-      const imageUrl = await uploadService.uploadImage(file, 'product', token, setUploadProgress);
+  const token = localStorage.getItem('jwt') || '';
+  // Upload via backend -> Cloudinary for given type (product/shop/profile)
+  const imageUrl = await uploadService.uploadImage(file, uploadType, token, setUploadProgress);
       onImagesChange([...images, imageUrl]);
       console.log('Image uploaded successfully:', imageUrl);
     } catch (error) {
@@ -115,7 +115,7 @@ const ImageUpload = ({ images = [], onImagesChange, maxImages = 5 }) => {
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
         <Typography variant="subtitle1" sx={{ mr: 1 }}>
-          Product Images ({images.length}/{maxImages})
+          {label} ({images.length}/{maxImages})
         </Typography>
         <Tooltip title="Get help with free image hosting">
           <IconButton size="small" onClick={() => setShowHelp(true)}>
